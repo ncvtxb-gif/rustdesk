@@ -23,6 +23,7 @@ class UserModel {
   final RxString networkError = ''.obs;
   final Rx<EnterpriseAuthState> enterpriseAuthState =
       EnterpriseAuthState.checking.obs;
+  final RxBool managedIdentityActive = false.obs;
   bool get isLogin => userName.isNotEmpty;
   String get displayNameOrUserName =>
       displayName.value.trim().isEmpty ? userName.value : displayName.value;
@@ -82,9 +83,12 @@ class UserModel {
       }
       refreshingUser = false;
       final status = response.statusCode;
-      if (status == 401 || status == 400) {
-        reset(resetOther: status == 401);
+      if (status == 401) {
+        await reset(resetOther: true);
         return;
+      }
+      if (status != 200) {
+        throw RequestException(status, 'Failed to refresh current user');
       }
       final data = json.decode(decode_http_response(response));
       final error = data['error'];
@@ -94,12 +98,18 @@ class UserModel {
 
       final user = UserPayload.fromJson(data);
       _parseAndUpdateUser(user);
-      enterpriseAuthState.value = EnterpriseAuthState.authenticated;
+      enterpriseAuthState.value = enterpriseStateAfterRefresh(
+        outcome: EnterpriseRefreshOutcome.success,
+        managedIdentityActive: managedIdentityActive.value,
+      );
     } catch (e) {
       debugPrint('Failed to refreshCurrentUser: $e');
-      if (getLocalUserInfo() != null && token.isNotEmpty) {
-        enterpriseAuthState.value = EnterpriseAuthState.offlineGrace;
-      }
+      enterpriseAuthState.value = enterpriseStateAfterRefresh(
+        outcome: e is RequestException
+            ? EnterpriseRefreshOutcome.badResponse
+            : EnterpriseRefreshOutcome.networkError,
+        managedIdentityActive: managedIdentityActive.value,
+      );
     } finally {
       refreshingUser = false;
       await updateOtherModels();
@@ -138,7 +148,15 @@ class UserModel {
     userName.value = '';
     displayName.value = '';
     avatar.value = '';
+    managedIdentityActive.value = false;
     enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+  }
+
+  void setManagedIdentityApplied(bool active) {
+    managedIdentityActive.value = active;
+    enterpriseAuthState.value = active
+        ? EnterpriseAuthState.authenticated
+        : EnterpriseAuthState.unauthenticated;
   }
 
   _parseAndUpdateUser(UserPayload user) {
@@ -223,7 +241,9 @@ class UserModel {
         loginResponse.access_token != null;
     if (isLogInDone && loginResponse.user != null) {
       _parseAndUpdateUser(loginResponse.user!);
-      enterpriseAuthState.value = EnterpriseAuthState.authenticated;
+      // Task 7 will call setManagedIdentityApplied(true) only after the Rust
+      // atomic identity apply succeeds. A token alone must never open the UI.
+      enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
     }
 
     return loginResponse;

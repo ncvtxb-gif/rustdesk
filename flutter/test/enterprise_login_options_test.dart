@@ -16,4 +16,28 @@ void main() {
       ],
     );
   });
+
+  test('enterprise login options reject WebAuth and duplicate providers', () {
+    final options = [
+      {'name': 'webauth'},
+      {'name': 'feishu', 'icon': 'first'},
+      {'name': 'feishu', 'icon': 'duplicate'},
+    ];
+
+    expect(
+      enterpriseFeishuLoginOptions(options, configuredProvider: 'feishu'),
+      [
+        {'name': 'feishu', 'icon': 'first'},
+      ],
+    );
+  });
+
+  test('enterprise login options fail closed when provider is missing', () {
+    expect(
+      enterpriseFeishuLoginOptions([
+        {'name': 'webauth'},
+      ], configuredProvider: 'feishu'),
+      isEmpty,
+    );
+  });
 }

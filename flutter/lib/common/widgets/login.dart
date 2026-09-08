@@ -390,9 +390,12 @@ const kAuthReqTypeOidc = 'oidc/';
 
 List<dynamic> enterpriseFeishuLoginOptions(List<dynamic> options,
     {required String configuredProvider}) {
-  return options.where((option) {
-    return option is Map && option['name'] == configuredProvider;
-  }).toList();
+  for (final option in options) {
+    if (option is Map && option['name'] == configuredProvider) {
+      return [option];
+    }
+  }
+  return [];
 }
 
 // call this directly

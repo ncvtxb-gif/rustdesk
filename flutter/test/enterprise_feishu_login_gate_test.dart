@@ -46,6 +46,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: EnterpriseFeishuLoginGate(
         state: EnterpriseAuthState.authenticated,
+        managedIdentityActive: true,
         onFeishuLogin: () async {},
         authenticatedChild: const Text('desktop-content'),
       ),
@@ -53,5 +54,48 @@ void main() {
 
     expect(find.text('desktop-content'), findsOneWidget);
     expect(find.byKey(enterpriseFeishuLoginButtonKey), findsNothing);
+  });
+
+  testWidgets('checking state never exposes desktop content', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.checking,
+        managedIdentityActive: false,
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    expect(find.text('desktop-content'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('offline grace fails closed without an applied managed identity',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.offlineGrace,
+        managedIdentityActive: false,
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    expect(find.text('desktop-content'), findsNothing);
+    expect(find.byKey(enterpriseFeishuLoginButtonKey), findsOneWidget);
+  });
+
+  testWidgets('offline grace restores content only for an applied identity',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.offlineGrace,
+        managedIdentityActive: true,
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    expect(find.text('desktop-content'), findsOneWidget);
   });
 }

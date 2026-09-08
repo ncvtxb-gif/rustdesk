@@ -114,6 +114,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         isWindows: isWindows, enterpriseBuild: enterpriseBuild)) {
       return Obx(() => EnterpriseFeishuLoginGate(
             state: gFFI.userModel.enterpriseAuthState.value,
+            managedIdentityActive:
+                gFFI.userModel.managedIdentityActive.value,
             onFeishuLogin: () async {
               final configuredProvider = bind.mainGetBuildinOption(
                   key: 'enterprise-feishu-oidc-op');

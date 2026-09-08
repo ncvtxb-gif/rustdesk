@@ -15,18 +15,21 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
   const EnterpriseFeishuLoginGate({
     super.key,
     required this.state,
+    this.managedIdentityActive = false,
     required this.onFeishuLogin,
     required this.authenticatedChild,
   });
 
   final EnterpriseAuthState state;
+  final bool managedIdentityActive;
   final Future<void> Function() onFeishuLogin;
   final Widget authenticatedChild;
 
   @override
   Widget build(BuildContext context) {
-    if (state == EnterpriseAuthState.authenticated ||
-        state == EnterpriseAuthState.offlineGrace) {
+    if (managedIdentityActive &&
+        (state == EnterpriseAuthState.authenticated ||
+            state == EnterpriseAuthState.offlineGrace)) {
       return authenticatedChild;
     }
     if (state == EnterpriseAuthState.checking) {
