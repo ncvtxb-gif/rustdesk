@@ -906,7 +906,9 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
         Data::ClearManagedIdentity => {
-            let result = Config::clear_managed_identity().map_err(|err| err.to_string());
+            let result = crate::hbbs_http::managed_device::clear()
+                .await
+                .map_err(|err| err.to_string());
             if result.is_ok() {
                 RendezvousMediator::restart();
             }
@@ -1230,7 +1232,10 @@ pub fn is_managed_identity_active() -> bool {
 async fn managed_identity_request(data: Data) -> ResultType<()> {
     let mut connection = connect(1000, "").await?;
     connection.send(&data).await?;
-    match connection.next_timeout(3000).await? {
+    match connection
+        .next_timeout(crate::hbbs_http::managed_device::MANAGED_IDENTITY_IPC_TIMEOUT_MS)
+        .await?
+    {
         Some(Data::ManagedIdentityResult(Ok(()))) => Ok(()),
         Some(Data::ManagedIdentityResult(Err(err))) => bail!(err),
         _ => bail!("invalid managed identity IPC response"),

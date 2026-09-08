@@ -2076,25 +2076,44 @@ pub fn main_set_permanent_password(password: String) {
     set_permanent_password(password);
 }
 
-#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 pub fn main_bootstrap_managed_identity(access_token: String) -> String {
-    crate::ipc::bootstrap_managed_identity(access_token)
-        .err()
-        .map(|err| err.to_string())
-        .unwrap_or_default()
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    {
+        crate::ipc::bootstrap_managed_identity(access_token)
+            .err()
+            .map(|err| err.to_string())
+            .unwrap_or_default()
+    }
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        let _ = access_token;
+        "managed identity is unavailable in this build".to_owned()
+    }
 }
 
-#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 pub fn main_clear_managed_identity() -> String {
-    crate::ipc::clear_managed_identity()
-        .err()
-        .map(|err| err.to_string())
-        .unwrap_or_default()
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    {
+        crate::ipc::clear_managed_identity()
+            .err()
+            .map(|err| err.to_string())
+            .unwrap_or_default()
+    }
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        String::new()
+    }
 }
 
-#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 pub fn main_is_managed_identity_active() -> bool {
-    crate::ipc::is_managed_identity_active()
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    {
+        crate::ipc::is_managed_identity_active()
+    }
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        false
+    }
 }
 
 pub fn main_is_enterprise_windows_build() -> SyncReturn<bool> {

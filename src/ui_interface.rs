@@ -1167,7 +1167,7 @@ pub fn get_login_device_info() -> LoginDeviceInfo {
     LoginDeviceInfo {
         // std::env::consts::OS is better than whoami::platform() here.
         os: std::env::consts::OS.to_owned(),
-        r#type: "client".to_owned(),
+        r#type: login_device_type().to_owned(),
         name: crate::common::hostname(),
     }
 }
@@ -1575,4 +1575,27 @@ pub fn is_remote_modify_enabled_by_control_permissions() -> Option<bool> {
     *IS_REMOTE_MODIFY_ENABLED_BY_CONTROL_PERMISSIONS
         .lock()
         .unwrap()
+}
+
+fn login_device_type() -> &'static str {
+    if cfg!(all(target_os = "windows", feature = "enterprise-windows")) {
+        "enterprise-windows"
+    } else {
+        "client"
+    }
+}
+
+#[cfg(test)]
+mod enterprise_login_device_tests {
+    use super::login_device_type;
+
+    #[test]
+    fn login_device_type_matches_build_policy() {
+        let expected = if cfg!(all(target_os = "windows", feature = "enterprise-windows")) {
+            "enterprise-windows"
+        } else {
+            "client"
+        };
+        assert_eq!(login_device_type(), expected);
+    }
 }

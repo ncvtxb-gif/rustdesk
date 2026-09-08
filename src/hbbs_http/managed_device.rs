@@ -8,6 +8,12 @@ use hbb_common::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+const MANAGED_HTTP_TIMEOUT: Duration = Duration::from_secs(12);
+const MANAGED_BODY_TIMEOUT: Duration = Duration::from_secs(5);
+const MANAGED_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const MANAGED_IDENTITY_IPC_TIMEOUT_MS: u64 = 35_000;
 
 static BOOTSTRAPS_IN_PROGRESS: AtomicUsize = AtomicUsize::new(0);
 lazy_static::lazy_static! {
@@ -51,6 +57,7 @@ pub struct ManagedDeviceBootstrapResponse {
     pub password_version: u64,
     pub status: String,
     pub machine_uuid: String,
+    pub session_expires_at: u64,
 }
 
 fn validate_locked_api_url(api_url: Option<&str>) -> ResultType<url::Url> {
@@ -77,7 +84,7 @@ fn validate_bootstrap_status(status: u16) -> ResultType<()> {
 }
 
 fn validate_auth_hash_status(status: u16) -> ResultType<()> {
-    if status == 200 {
+    if status == 200 || status == 204 {
         Ok(())
     } else {
         bail!("managed device auth hash upload was rejected with HTTP {status}")
@@ -96,6 +103,18 @@ fn validate_bootstrap_response(
     response: &ManagedDeviceBootstrapResponse,
     expected_machine_uuid: &str,
 ) -> ResultType<()> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    validate_bootstrap_response_at(response, expected_machine_uuid, now)
+}
+
+fn validate_bootstrap_response_at(
+    response: &ManagedDeviceBootstrapResponse,
+    expected_machine_uuid: &str,
+    now: u64,
+) -> ResultType<()> {
     if response.machine_uuid != expected_machine_uuid {
         bail!("managed device bootstrap machine UUID mismatch");
     }
@@ -105,6 +124,9 @@ fn validate_bootstrap_response(
     if response.password_version == 0 {
         bail!("managed device credential version is invalid");
     }
+    if response.session_expires_at == 0 || response.session_expires_at <= now {
+        bail!("managed device login session is expired");
+    }
     if response.rustdesk_id.is_empty() || response.permanent_password.is_empty() {
         bail!("managed device bootstrap response is incomplete");
     }
@@ -112,8 +134,13 @@ fn validate_bootstrap_response(
 }
 
 pub async fn bootstrap(access_token: &str) -> ResultType<()> {
-    let _bootstrap_lock = BOOTSTRAP_LOCK.lock().await;
     let _bootstrap_guard = BootstrapGuard::begin();
+    let _bootstrap_lock = hbb_common::tokio::time::timeout(
+        MANAGED_LOCK_TIMEOUT,
+        BOOTSTRAP_LOCK.lock(),
+    )
+    .await
+    .context("managed device bootstrap is busy")?;
     if access_token.trim().is_empty() {
         bail!("missing API access token");
     }
@@ -130,35 +157,50 @@ pub async fn bootstrap(access_token: &str) -> ResultType<()> {
     // Bootstrap carries a bearer token and managed credential. Never use the
     // generic client's invalid-certificate fallback for this exchange.
     let client = super::create_http_client_async(TlsType::Rustls, false);
-    let response = client
-        .post(endpoint)
-        .bearer_auth(access_token)
-        .json(&ManagedDeviceBootstrapRequest {
-            machine_uuid: &machine_uuid,
-            platform: "windows",
-        })
-        .send()
+    let response = hbb_common::tokio::time::timeout(
+        MANAGED_HTTP_TIMEOUT,
+        client
+            .post(endpoint)
+            .bearer_auth(access_token)
+            .json(&ManagedDeviceBootstrapRequest {
+                machine_uuid: &machine_uuid,
+                platform: "windows",
+            })
+            .send(),
+    )
         .await
+        .context("managed device bootstrap request timed out")?
         .context("managed device bootstrap request failed")?;
     validate_bootstrap_status(response.status().as_u16())?;
-    let identity = response
-        .json::<ManagedDeviceBootstrapResponse>()
+    let identity = hbb_common::tokio::time::timeout(
+        MANAGED_BODY_TIMEOUT,
+        response.json::<ManagedDeviceBootstrapResponse>(),
+    )
         .await
+        .context("managed device bootstrap response timed out")?
         .context("invalid managed device bootstrap response")?;
     validate_bootstrap_response(&identity, &machine_uuid)?;
-    Config::apply_managed_identity(&identity.rustdesk_id, &identity.permanent_password)?;
+    Config::apply_managed_identity(
+        &identity.rustdesk_id,
+        &identity.permanent_password,
+        identity.session_expires_at,
+    )?;
 
     let auth_hash = compatible_password_hash(&identity.permanent_password, &Config::get_salt());
     let upload_result = async {
         let auth_hash_endpoint = api_url
             .join("/api/managed-device/auth-hash")
             .context("invalid managed device auth hash endpoint")?;
-        let response = client
-            .put(auth_hash_endpoint)
-            .bearer_auth(access_token)
-            .json(&ManagedDeviceAuthHashRequest { hash: &auth_hash })
-            .send()
+        let response = hbb_common::tokio::time::timeout(
+            MANAGED_HTTP_TIMEOUT,
+            client
+                .put(auth_hash_endpoint)
+                .bearer_auth(access_token)
+                .json(&ManagedDeviceAuthHashRequest { hash: &auth_hash })
+                .send(),
+        )
             .await
+            .context("managed device auth hash upload timed out")?
             .context("managed device auth hash upload failed")?;
         validate_auth_hash_status(response.status().as_u16())
     }
@@ -175,6 +217,11 @@ pub async fn bootstrap(access_token: &str) -> ResultType<()> {
     Ok(())
 }
 
+pub async fn clear() -> ResultType<()> {
+    let _bootstrap_lock = BOOTSTRAP_LOCK.lock().await;
+    Config::clear_managed_identity()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +233,7 @@ mod tests {
             password_version: 1,
             status: "active".to_owned(),
             machine_uuid: "machine-uuid".to_owned(),
+            session_expires_at: u64::MAX,
         }
     }
 
@@ -234,5 +282,25 @@ mod tests {
         assert!(validate_auth_hash_status(401).is_err());
         assert!(validate_auth_hash_status(500).is_err());
         assert!(validate_auth_hash_status(200).is_ok());
+        assert!(validate_auth_hash_status(204).is_ok());
+    }
+
+    #[test]
+    fn ipc_timeout_exceeds_complete_bootstrap_timeout() {
+        let maximum_operation_ms = MANAGED_LOCK_TIMEOUT.as_millis() as u64
+            + (2 * MANAGED_HTTP_TIMEOUT.as_millis() as u64)
+            + MANAGED_BODY_TIMEOUT.as_millis() as u64;
+        assert!(MANAGED_IDENTITY_IPC_TIMEOUT_MS > maximum_operation_ms);
+    }
+
+    #[test]
+    fn rejects_expired_bootstrap_identity() {
+        let mut response = valid_response();
+        response.session_expires_at = 100;
+        assert!(validate_bootstrap_response_at(&response, "machine-uuid", 100).is_err());
+        response.session_expires_at = 101;
+        assert!(validate_bootstrap_response_at(&response, "machine-uuid", 100).is_ok());
+        response.session_expires_at = 0;
+        assert!(validate_bootstrap_response_at(&response, "machine-uuid", 0).is_err());
     }
 }
