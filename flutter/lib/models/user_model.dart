@@ -62,6 +62,7 @@ class UserModel {
     if (bind.isDisableAccount()) return;
     networkError.value = '';
     final token = bind.mainGetLocalOption(key: 'access_token');
+    final refreshGeneration = _identityGeneration;
     if (token == '') {
       if (bind.mainIsEnterpriseWindowsBuild()) {
         await reset(resetOther: true);
@@ -108,14 +109,21 @@ class UserModel {
       if (error != null) {
         throw error;
       }
+      if (refreshGeneration != _identityGeneration) return;
 
       final user = UserPayload.fromJson(data);
       _parseAndUpdateUser(user);
-      enterpriseAuthState.value = enterpriseStateAfterRefresh(
-        outcome: EnterpriseRefreshOutcome.success,
-        managedIdentityActive: managedIdentityActive.value,
-      );
-      _scheduleManagedRenewal(retry: !managedIdentityActive.value);
+      if (shouldRenewImmediatelyAfterRefresh(
+          enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+          tokenAccepted: true)) {
+        enterpriseAuthState.value = EnterpriseAuthState.checking;
+        await _renewManagedIdentity(refreshGeneration);
+      } else {
+        enterpriseAuthState.value = enterpriseStateAfterRefresh(
+          outcome: EnterpriseRefreshOutcome.success,
+          managedIdentityActive: managedIdentityActive.value,
+        );
+      }
     } catch (e) {
       debugPrint('Failed to refreshCurrentUser: $e');
       enterpriseAuthState.value = enterpriseStateAfterRefresh(
@@ -124,6 +132,9 @@ class UserModel {
             : EnterpriseRefreshOutcome.networkError,
         managedIdentityActive: managedIdentityActive.value,
       );
+      if (bind.mainIsEnterpriseWindowsBuild()) {
+        _scheduleManagedRenewal(retry: true);
+      }
     } finally {
       refreshingUser = false;
       if (!skipOtherModels) {
@@ -194,7 +205,6 @@ class UserModel {
     managedIdentityActive.value = active;
     enterpriseAuthState.value = EnterpriseAuthState.checking;
     if (active) {
-      _scheduleManagedRenewal();
       _startManagedActivePolling();
     }
   }
@@ -277,6 +287,8 @@ class UserModel {
         _scheduleManagedRenewal(retry: true);
         break;
       case EnterpriseRenewalResult.expired:
+        _managedActivePollTimer?.cancel();
+        _managedActivePollTimer = null;
         managedIdentityActive.value = false;
         enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
         networkError.value = 'Managed identity session expired; renewal is required';
@@ -302,7 +314,11 @@ class UserModel {
       } catch (_) {
         return;
       }
-      if (!active && generation == _identityGeneration) {
+      if (enterpriseActivePollAction(active) ==
+              EnterpriseActivePollAction.stopAndRetry &&
+          generation == _identityGeneration) {
+        _managedActivePollTimer?.cancel();
+        _managedActivePollTimer = null;
         managedIdentityActive.value = false;
         enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
         networkError.value =

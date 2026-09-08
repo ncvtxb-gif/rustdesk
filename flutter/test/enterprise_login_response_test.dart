@@ -31,10 +31,35 @@ void main() {
 
   test('renewal policy adds bounded jitter to avoid startup bursts', () {
     const policy = EnterpriseRenewalPolicy();
+    expect(policy.initialDelay, Duration.zero);
     expect(policy.normalDelay(0), const Duration(hours: 6));
     expect(policy.normalDelay(1), const Duration(hours: 6, minutes: 30));
     expect(policy.retryDelay(0), const Duration(minutes: 5));
     expect(policy.retryDelay(1), const Duration(minutes: 6));
+  });
+
+  test('authenticated enterprise refresh requires immediate renewal', () {
+    expect(
+      shouldRenewImmediatelyAfterRefresh(
+          enterpriseBuild: true, tokenAccepted: true),
+      isTrue,
+    );
+    expect(
+      shouldRenewImmediatelyAfterRefresh(
+          enterpriseBuild: false, tokenAccepted: true),
+      isFalse,
+    );
+  });
+
+  test('inactive marker stops polling before scheduling renewal retry', () {
+    expect(
+      enterpriseActivePollAction(true),
+      EnterpriseActivePollAction.continuePolling,
+    );
+    expect(
+      enterpriseActivePollAction(false),
+      EnterpriseActivePollAction.stopAndRetry,
+    );
   });
 
   test('renewal keeps an old valid identity on transient network failure',

@@ -23,6 +23,18 @@ class EnterpriseClearResult {
 
 enum EnterpriseRenewalResult { renewed, offlineValid, expired, revoked }
 
+enum EnterpriseActivePollAction { continuePolling, stopAndRetry }
+
+EnterpriseActivePollAction enterpriseActivePollAction(bool active) => active
+    ? EnterpriseActivePollAction.continuePolling
+    : EnterpriseActivePollAction.stopAndRetry;
+
+bool shouldRenewImmediatelyAfterRefresh({
+  required bool enterpriseBuild,
+  required bool tokenAccepted,
+}) =>
+    enterpriseBuild && tokenAccepted;
+
 class EnterpriseRenewalPolicy {
   const EnterpriseRenewalPolicy({
     this.interval = const Duration(hours: 6),
@@ -35,6 +47,7 @@ class EnterpriseRenewalPolicy {
   final Duration jitterWindow;
   final Duration retryInterval;
   final Duration retryJitterWindow;
+  Duration get initialDelay => Duration.zero;
 
   Duration normalDelay(double randomUnit) =>
       _withJitter(interval, jitterWindow, randomUnit);
