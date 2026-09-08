@@ -4,6 +4,8 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
+import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
@@ -106,6 +108,25 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 ),
               ),
             )));
+    final enterpriseBuild =
+        bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y';
+    if (shouldUseEnterpriseWindowsGate(
+        isWindows: isWindows, enterpriseBuild: enterpriseBuild)) {
+      return Obx(() => EnterpriseFeishuLoginGate(
+            state: gFFI.userModel.enterpriseAuthState.value,
+            onFeishuLogin: () async {
+              final configuredProvider = bind.mainGetBuildinOption(
+                  key: 'enterprise-feishu-oidc-op');
+              await loginDialog(
+                enterpriseFeishuOnly: true,
+                configuredFeishuProvider: configuredProvider.isEmpty
+                    ? 'feishu'
+                    : configuredProvider,
+              );
+            },
+            authenticatedChild: tabWidget,
+          ));
+    }
     return isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(

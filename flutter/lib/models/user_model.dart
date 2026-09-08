@@ -11,6 +11,7 @@ import '../common.dart';
 import '../utils/http_service.dart' as http;
 import 'model.dart';
 import 'platform_model.dart';
+import 'enterprise_auth_state.dart';
 
 bool refreshingUser = false;
 
@@ -20,6 +21,8 @@ class UserModel {
   final RxString avatar = ''.obs;
   final RxBool isAdmin = false.obs;
   final RxString networkError = ''.obs;
+  final Rx<EnterpriseAuthState> enterpriseAuthState =
+      EnterpriseAuthState.checking.obs;
   bool get isLogin => userName.isNotEmpty;
   String get displayNameOrUserName =>
       displayName.value.trim().isEmpty ? userName.value : displayName.value;
@@ -52,6 +55,7 @@ class UserModel {
     networkError.value = '';
     final token = bind.mainGetLocalOption(key: 'access_token');
     if (token == '') {
+      enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
       await updateOtherModels();
       return;
     }
@@ -90,8 +94,12 @@ class UserModel {
 
       final user = UserPayload.fromJson(data);
       _parseAndUpdateUser(user);
+      enterpriseAuthState.value = EnterpriseAuthState.authenticated;
     } catch (e) {
       debugPrint('Failed to refreshCurrentUser: $e');
+      if (getLocalUserInfo() != null && token.isNotEmpty) {
+        enterpriseAuthState.value = EnterpriseAuthState.offlineGrace;
+      }
     } finally {
       refreshingUser = false;
       await updateOtherModels();
@@ -130,6 +138,7 @@ class UserModel {
     userName.value = '';
     displayName.value = '';
     avatar.value = '';
+    enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
   }
 
   _parseAndUpdateUser(UserPayload user) {
@@ -214,6 +223,7 @@ class UserModel {
         loginResponse.access_token != null;
     if (isLogInDone && loginResponse.user != null) {
       _parseAndUpdateUser(loginResponse.user!);
+      enterpriseAuthState.value = EnterpriseAuthState.authenticated;
     }
 
     return loginResponse;

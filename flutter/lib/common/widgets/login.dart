@@ -388,8 +388,18 @@ class LoginWidgetUserPass extends StatelessWidget {
 
 const kAuthReqTypeOidc = 'oidc/';
 
+List<dynamic> enterpriseFeishuLoginOptions(List<dynamic> options,
+    {required String configuredProvider}) {
+  return options.where((option) {
+    return option is Map && option['name'] == configuredProvider;
+  }).toList();
+}
+
 // call this directly
-Future<bool?> loginDialog() async {
+Future<bool?> loginDialog({
+  bool enterpriseFeishuOnly = false,
+  String configuredFeishuProvider = 'feishu',
+}) async {
   var username =
       TextEditingController(text: UserModel.getLocalUserInfo()?['name'] ?? '');
   var password = TextEditingController();
@@ -405,7 +415,11 @@ Future<bool?> loginDialog() async {
 
   final loginOptions = [].obs;
   Future.delayed(Duration.zero, () async {
-    loginOptions.value = await UserModel.queryOidcLoginOptions();
+    final options = await UserModel.queryOidcLoginOptions();
+    loginOptions.value = enterpriseFeishuOnly
+        ? enterpriseFeishuLoginOptions(options,
+            configuredProvider: configuredFeishuProvider)
+        : options;
   });
 
   final res = await gFFI.dialogManager.show<bool>((setState, close, context) {
@@ -517,12 +531,12 @@ Future<bool?> loginDialog() async {
                 const SizedBox(
                   height: 8.0,
                 ),
-                Center(
+                if (!enterpriseFeishuOnly) Center(
                     child: Text(
                   translate('or'),
                   style: TextStyle(fontSize: 16),
                 )),
-                const SizedBox(
+                if (!enterpriseFeishuOnly) const SizedBox(
                   height: 8.0,
                 ),
                 LoginWidgetOP(
@@ -559,7 +573,7 @@ Future<bool?> loginDialog() async {
         Text(
           translate('Login'),
         ).marginOnly(top: MyTheme.dialogPadding),
-        MouseRegion(
+        if (!enterpriseFeishuOnly) MouseRegion(
           onEnter: (_) => setState(() => isCloseHovered = true),
           onExit: (_) => setState(() => isCloseHovered = false),
           child: InkWell(
@@ -595,7 +609,7 @@ Future<bool?> loginDialog() async {
           const SizedBox(
             height: 8.0,
           ),
-          LoginWidgetUserPass(
+          if (!enterpriseFeishuOnly) LoginWidgetUserPass(
             username: username,
             pass: password,
             usernameMsg: usernameMsg,
@@ -608,8 +622,8 @@ Future<bool?> loginDialog() async {
           thirdAuthWidget(),
         ],
       ),
-      onCancel: onDialogCancel,
-      onSubmit: onLogin,
+      onCancel: enterpriseFeishuOnly ? () {} : onDialogCancel,
+      onSubmit: enterpriseFeishuOnly ? null : onLogin,
     );
   });
 
