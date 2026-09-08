@@ -1028,7 +1028,24 @@ pub fn is_setup(name: &str) -> bool {
     name.to_lowercase().ends_with("install.exe")
 }
 
+fn enterprise_compiled_value(compiled: &str) -> Option<String> {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    {
+        return Some(compiled.trim().to_owned());
+    }
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        let _ = compiled;
+        None
+    }
+}
+
 pub fn get_custom_rendezvous_server(custom: String) -> String {
+    if let Some(compiled) = enterprise_compiled_value(
+        &config::PROD_RENDEZVOUS_SERVER.read().unwrap(),
+    ) {
+        return compiled;
+    }
     #[cfg(windows)]
     if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
         if !lic.host.is_empty() {
@@ -1046,6 +1063,11 @@ pub fn get_custom_rendezvous_server(custom: String) -> String {
 
 #[inline]
 pub fn get_api_server(api: String, custom: String) -> String {
+    if let Some(locked) =
+        enterprise_compiled_value(option_env!("API_SERVER").unwrap_or_default())
+    {
+        return locked.trim_end_matches('/').to_owned();
+    }
     if Config::no_register_device() {
         return "".to_owned();
     }
@@ -1063,6 +1085,11 @@ pub fn get_api_server(api: String, custom: String) -> String {
 }
 
 fn get_api_server_(api: String, custom: String) -> String {
+    if let Some(locked) =
+        enterprise_compiled_value(option_env!("API_SERVER").unwrap_or_default())
+    {
+        return locked;
+    }
     #[cfg(windows)]
     if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
         if !lic.api.is_empty() {
@@ -2356,6 +2383,17 @@ mod tests {
     fn enterprise_service_gate_requires_active_managed_identity() {
         assert!(!enterprise_services_allowed_for(false));
         assert!(enterprise_services_allowed_for(true));
+    }
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn enterprise_compiled_network_value_wins_conflicting_legacy_value() {
+        assert_eq!(
+            enterprise_compiled_value("  compiled.example  ")
+                .unwrap_or_else(|| "legacy.example".to_owned()),
+            "compiled.example"
+        );
+        assert_eq!(enterprise_compiled_value("  "), Some(String::new()));
     }
 
     #[inline]
