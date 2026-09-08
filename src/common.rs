@@ -2321,6 +2321,20 @@ pub fn get_control_permission(
     }
 }
 
+#[inline]
+pub fn enterprise_services_allowed() -> bool {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return enterprise_services_allowed_for(Config::is_managed_identity_active());
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    true
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+#[inline]
+fn enterprise_services_allowed_for(managed_identity_active: bool) -> bool {
+    managed_identity_active
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2329,6 +2343,13 @@ mod tests {
         time::{interval, interval_at, sleep, Duration, Instant, Interval},
     };
     use std::collections::HashSet;
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn enterprise_service_gate_requires_active_managed_identity() {
+        assert!(!enterprise_services_allowed_for(false));
+        assert!(enterprise_services_allowed_for(true));
+    }
 
     #[inline]
     fn get_timestamp_secs() -> u128 {

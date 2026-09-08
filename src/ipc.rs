@@ -45,6 +45,28 @@ use crate::{common::is_server, privacy_mode, rendezvous_mediator::RendezvousMedi
 pub const IPC_ACTION_CLOSE: &str = "close";
 pub static EXIT_RECV_CLOSE: AtomicBool = AtomicBool::new(true);
 
+#[inline]
+fn is_managed_config_name(name: &str) -> bool {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return matches!(name, "id" | "permanent-password" | "temporary-password");
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        let _ = name;
+        false
+    }
+}
+
+#[inline]
+fn is_managed_secret_name(name: &str) -> bool {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return matches!(name, "permanent-password" | "temporary-password");
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        let _ = name;
+        false
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum FS {
@@ -265,6 +287,12 @@ pub enum Data {
     FS(FS),
     Test,
     SyncConfig(Option<Box<(Config, Config2)>>),
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    ManagedIdentity((String, String)),
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    ClearManagedIdentity,
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    ManagedIdentityResult(Result<(), String>),
     #[cfg(target_os = "windows")]
     ClipboardFile(ClipboardFile),
     ClipboardFileEnabled(bool),
@@ -628,7 +656,9 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::Config((name, value)) => match value {
             None => {
                 let value;
-                if name == "id" {
+                if is_managed_secret_name(&name) {
+                    value = None;
+                } else if name == "id" {
                     value = Some(Config::get_id());
                 } else if name == "temporary-password" {
                     value = Some(password::temporary_password());
@@ -636,6 +666,15 @@ async fn handle(data: Data, stream: &mut Connection) {
                     value = Some(Config::get_permanent_password());
                 } else if name == "salt" {
                     value = Some(Config::get_salt());
+                } else if name == "managed-identity-active" {
+                    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+                    {
+                        value = Some(Config::is_managed_identity_active().to_string());
+                    }
+                    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+                    {
+                        value = None;
+                    }
                 } else if name == "rendezvous_server" {
                     value = Some(format!(
                         "{},{}",
@@ -669,6 +708,10 @@ async fn handle(data: Data, stream: &mut Connection) {
                 allow_err!(stream.send(&Data::Config((name, value))).await);
             }
             Some(value) => {
+                if is_managed_config_name(&name) {
+                    log::warn!("Ignoring enterprise-managed config mutation: {name}");
+                    return;
+                }
                 if name == "id" {
                     Config::set_key_confirmed(false);
                     Config::set_id(&value);
@@ -851,6 +894,25 @@ async fn handle(data: Data, stream: &mut Connection) {
                 // This branch is left blank for unification and further use.
             }
         },
+        #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+        Data::ManagedIdentity((id, password)) => {
+            let result = Config::apply_managed_identity(&id, &password)
+                .map_err(|err| err.to_string());
+            if result.is_ok() {
+                RendezvousMediator::restart();
+            }
+            allow_err!(stream.send(&Data::ManagedIdentityResult(result)).await);
+        }
+        #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+        Data::ClearManagedIdentity => {
+            let result = Config::clear_managed_identity().map_err(|err| err.to_string());
+            if result.is_ok() {
+                RendezvousMediator::restart();
+            }
+            allow_err!(stream.send(&Data::ManagedIdentityResult(result)).await);
+        }
+        #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+        Data::ManagedIdentityResult(_) => {}
         #[cfg(target_os = "windows")]
         Data::PortForwardSessionCount(c) => match c {
             None => {
@@ -1136,7 +1198,42 @@ async fn set_data_async(data: &Data) -> ResultType<()> {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn set_config(name: &str, value: String) -> ResultType<()> {
+    if is_managed_config_name(name) {
+        bail!("configuration is managed by enterprise authentication");
+    }
     set_config_async(name, value).await
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn apply_managed_identity(id: String, password: String) -> ResultType<()> {
+    managed_identity_request(Data::ManagedIdentity((id, password))).await
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn clear_managed_identity() -> ResultType<()> {
+    managed_identity_request(Data::ClearManagedIdentity).await
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub fn is_managed_identity_active() -> bool {
+    get_config("managed-identity-active")
+        .ok()
+        .flatten()
+        .map(|value| value == "true")
+        .unwrap_or(false)
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+async fn managed_identity_request(data: Data) -> ResultType<()> {
+    let mut connection = connect(1000, "").await?;
+    connection.send(&data).await?;
+    match connection.next_timeout(3000).await? {
+        Some(Data::ManagedIdentityResult(Ok(()))) => Ok(()),
+        Some(Data::ManagedIdentityResult(Err(err))) => bail!(err),
+        _ => bail!("invalid managed identity IPC response"),
+    }
 }
 
 pub fn update_temporary_password() -> ResultType<()> {
@@ -1144,11 +1241,16 @@ pub fn update_temporary_password() -> ResultType<()> {
 }
 
 pub fn get_permanent_password() -> String {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return String::new();
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
     if let Ok(Some(v)) = get_config("permanent-password") {
         Config::set_permanent_password(&v);
         v
     } else {
         Config::get_permanent_password()
+    }
     }
 }
 
@@ -1581,6 +1683,15 @@ pub async fn set_install_option(k: String, v: String) -> ResultType<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn enterprise_rejects_ordinary_identity_mutation_names() {
+        assert!(is_managed_config_name("id"));
+        assert!(is_managed_config_name("permanent-password"));
+        assert!(is_managed_config_name("temporary-password"));
+        assert!(!is_managed_config_name("salt"));
+    }
     #[test]
     fn verify_ffi_enum_data_size() {
         println!("{}", std::mem::size_of::<Data>());

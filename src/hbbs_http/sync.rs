@@ -94,6 +94,10 @@ async fn start_hbbs_sync_async() {
     loop {
         tokio::select! {
             _ = interval.tick() => {
+                if !crate::common::enterprise_services_allowed() {
+                    *PRO.lock().unwrap() = false;
+                    continue;
+                }
                 let url = heartbeat_url();
                 let id = Config::get_id();
                 if url.is_empty() {

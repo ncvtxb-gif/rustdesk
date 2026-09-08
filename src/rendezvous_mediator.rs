@@ -58,6 +58,9 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
+        while !crate::common::enterprise_services_allowed() {
+            sleep(1.).await;
+        }
         crate::test_nat_type();
         if config::is_outgoing_only() {
             loop {
@@ -94,10 +97,15 @@ impl RendezvousMediator {
         }
         scrap::codec::test_av1();
         loop {
+            while !crate::common::enterprise_services_allowed() {
+                server.write().unwrap().close_connections();
+                sleep(1.).await;
+            }
             let timeout = Arc::new(RwLock::new(CONNECT_TIMEOUT));
             let conn_start_time = Instant::now();
             *SOLVING_PK_MISMATCH.lock().await = "".to_owned();
-            if !config::option2bool("stop-service", &Config::get_option("stop-service"))
+            if crate::common::enterprise_services_allowed()
+                && !config::option2bool("stop-service", &Config::get_option("stop-service"))
                 && !crate::platform::installing_service()
             {
                 let mut futs = Vec::new();
@@ -765,7 +773,7 @@ async fn direct_server(server: ServerPtr) {
     let mut listener = None;
     let mut port = 0;
     loop {
-        let disabled = !option2bool(
+        let disabled = !crate::common::enterprise_services_allowed() || !option2bool(
             OPTION_DIRECT_SERVER,
             &Config::get_option(OPTION_DIRECT_SERVER),
         ) || option2bool("stop-service", &Config::get_option("stop-service"));

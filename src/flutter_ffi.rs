@@ -2076,6 +2076,27 @@ pub fn main_set_permanent_password(password: String) {
     set_permanent_password(password);
 }
 
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub fn main_apply_managed_identity(id: String, password: String) -> String {
+    crate::ipc::apply_managed_identity(id, password)
+        .err()
+        .map(|err| err.to_string())
+        .unwrap_or_default()
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub fn main_clear_managed_identity() -> String {
+    crate::ipc::clear_managed_identity()
+        .err()
+        .map(|err| err.to_string())
+        .unwrap_or_default()
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub fn main_is_managed_identity_active() -> bool {
+    crate::ipc::is_managed_identity_active()
+}
+
 pub fn main_check_super_user_permission() -> bool {
     check_super_user_permission()
 }

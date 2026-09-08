@@ -23,8 +23,34 @@ use std::{
 
 type Message = RendezvousMessage;
 
+#[inline]
+fn lan_allowed() -> bool {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return lan_allowed_for(crate::common::enterprise_services_allowed());
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    true
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+#[inline]
+fn lan_allowed_for(_managed_identity_active: bool) -> bool {
+    false
+}
+
+#[cfg(all(test, target_os = "windows", feature = "enterprise-windows"))]
+mod enterprise_tests {
+    #[test]
+    fn lan_entry_points_are_disabled() {
+        assert!(!super::lan_allowed_for(true));
+        assert!(!super::lan_allowed_for(false));
+    }
+}
+
 #[cfg(not(target_os = "ios"))]
 pub(super) fn start_listening() -> ResultType<()> {
+    if !lan_allowed() {
+        bail!("LAN discovery is disabled by enterprise policy");
+    }
     let addr = SocketAddr::from(([0, 0, 0, 0], get_broadcast_port()));
     let socket = std::net::UdpSocket::bind(addr)?;
     socket.set_read_timeout(Some(std::time::Duration::from_millis(1000)))?;
@@ -75,6 +101,9 @@ pub(super) fn start_listening() -> ResultType<()> {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn discover() -> ResultType<()> {
+    if !lan_allowed() {
+        bail!("LAN discovery is disabled by enterprise policy");
+    }
     let sockets = send_query()?;
     let rx = spawn_wait_responses(sockets);
     handle_received_peers(rx).await?;

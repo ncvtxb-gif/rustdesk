@@ -610,10 +610,15 @@ pub fn update_temporary_password() {
 
 #[inline]
 pub fn permanent_password() -> String {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    return String::new();
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return Config::get_permanent_password();
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return ipc::get_permanent_password();
+    }
 }
 
 #[inline]
