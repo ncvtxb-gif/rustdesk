@@ -82,6 +82,7 @@ class PeerPayload {
   String user_name = '';
   String? device_group_name;
   String note = '';
+  String hash = '';
 
   PeerPayload.fromJson(Map<String, dynamic> json)
       : id = json['id'] ?? '',
@@ -90,7 +91,8 @@ class PeerPayload {
         user = json['user'] ?? '',
         user_name = json['user_name'] ?? '',
         device_group_name = json['device_group_name'] ?? '',
-        note = json['note'] ?? '';
+        note = json['note'] ?? '',
+        hash = json['hash'] ?? '';
 
   static Peer toPeer(PeerPayload p) {
     return Peer.fromJson({
@@ -101,6 +103,7 @@ class PeerPayload {
       "hostname": p.info['device_name'],
       "device_group_name": p.device_group_name,
       "note": p.note,
+      "hash": p.hash,
     });
   }
 
@@ -183,15 +186,13 @@ class LoginResponse {
   String? tfa_type;
   String? secret;
   UserPayload? user;
-  ManagedDevicePayload? device;
 
   LoginResponse(
       {this.access_token,
       this.type,
       this.tfa_type,
       this.secret,
-      this.user,
-      this.device});
+      this.user});
 
   LoginResponse.fromJson(Map<String, dynamic> json) {
     access_token = json['access_token'];
@@ -199,32 +200,7 @@ class LoginResponse {
     tfa_type = json['tfa_type'];
     secret = json['secret'];
     user = json['user'] != null ? UserPayload.fromJson(json['user']) : null;
-    device = json['device'] is Map
-        ? ManagedDevicePayload.fromJson(
-            Map<String, dynamic>.from(json['device']))
-        : null;
   }
-}
-
-class ManagedDevicePayload {
-  ManagedDevicePayload.fromJson(Map<String, dynamic> json)
-      : rustdeskId = (json['rustdesk_id'] ?? '').toString(),
-        permanentPassword = (json['permanent_password'] ?? '').toString(),
-        passwordVersion = json['password_version'] is int
-            ? json['password_version']
-            : int.tryParse('${json['password_version']}') ?? 0,
-        status = (json['status'] ?? '').toString();
-
-  final String rustdeskId;
-  final String permanentPassword;
-  final int passwordVersion;
-  final String status;
-
-  bool get isValid =>
-      rustdeskId.isNotEmpty &&
-      permanentPassword.isNotEmpty &&
-      passwordVersion > 0 &&
-      status == 'active';
 }
 
 class RequestException implements Exception {

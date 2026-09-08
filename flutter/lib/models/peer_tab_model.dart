@@ -44,9 +44,7 @@ class PeerTabModel with ChangeNotifier {
     !isWeb &&
         (shouldUseEnterpriseWindowsGate(
                 isWindows: isWindows,
-                enterpriseBuild: bind.mainGetBuildinOption(
-                        key: 'enterprise-windows') ==
-                    'Y')
+                enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
             ? EnterpriseUiPolicy.enabled.showDiscoveryTab
             : bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y"),
     !(bind.isDisableAb() || bind.isDisableAccount()),

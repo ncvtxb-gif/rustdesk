@@ -82,8 +82,8 @@ class Peer {
     return res;
   }
 
-  Map<String, dynamic> toGroupCacheJson() {
-    return <String, dynamic>{
+  Map<String, dynamic> toGroupCacheJson({bool includingHash = false}) {
+    final result = <String, dynamic>{
       "id": id,
       "username": username,
       "hostname": hostname,
@@ -91,6 +91,10 @@ class Peer {
       "login_name": loginName,
       "device_group_name": device_group_name,
     };
+    if (includingHash && hash.isNotEmpty) {
+      result['hash'] = hash;
+    }
+    return result;
   }
 
   Peer({

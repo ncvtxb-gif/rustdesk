@@ -51,6 +51,16 @@ class EventToUI_Texture implements EventToUI {
 }
 
 class RustdeskImpl {
+  bool mainIsEnterpriseWindowsBuild({dynamic hint}) => false;
+
+  Future<bool> mainIsManagedIdentityActive({dynamic hint}) async => false;
+
+  Future<String> mainBootstrapManagedIdentity(
+          {required String accessToken, dynamic hint}) async =>
+      'managed identity is unavailable on web';
+
+  Future<String> mainClearManagedIdentity({dynamic hint}) async => '';
+
   Future<void> stopGlobalEventStream({required String appType, dynamic hint}) {
     throw UnimplementedError("stopGlobalEventStream");
   }

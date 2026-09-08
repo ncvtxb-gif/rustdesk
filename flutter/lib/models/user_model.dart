@@ -140,11 +140,14 @@ class UserModel {
   }
 
   Future<void> reset({bool resetOther = false}) async {
-    if (managedIdentityActive.value) {
-      await EnterpriseIdentityBridge.rollback();
-    }
-    await bind.mainSetLocalOption(key: 'access_token', value: '');
-    await bind.mainSetLocalOption(key: 'user_info', value: '');
+    // Clearing the service-side identity is idempotent and must complete before
+    // credentials are removed, including after a 401 or a partial bootstrap.
+    await clearEnterpriseSession(
+      clearIdentity: EnterpriseIdentityBridge.clear,
+      clearToken: () =>
+          bind.mainSetLocalOption(key: 'access_token', value: ''),
+      clearUser: () => bind.mainSetLocalOption(key: 'user_info', value: ''),
+    );
     if (resetOther) {
       await gFFI.abModel.reset();
       await gFFI.groupModel.reset();
@@ -152,6 +155,7 @@ class UserModel {
     userName.value = '';
     displayName.value = '';
     avatar.value = '';
+    isAdmin.value = false;
     managedIdentityActive.value = false;
     enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
   }
@@ -163,13 +167,22 @@ class UserModel {
         : EnterpriseAuthState.unauthenticated;
   }
 
+  void initializeManagedIdentity(bool active) {
+    managedIdentityActive.value = active;
+    enterpriseAuthState.value = EnterpriseAuthState.checking;
+  }
+
   Future<bool> applyEnterpriseLoginResponse(LoginResponse response) async {
     final coordinator = EnterpriseIdentityCoordinator(
-      apply: EnterpriseIdentityBridge.apply,
-      rollback: () async {
-        await EnterpriseIdentityBridge.rollback();
-        await bind.mainSetLocalOption(key: 'access_token', value: '');
-        await bind.mainSetLocalOption(key: 'user_info', value: '');
+      bootstrap: EnterpriseIdentityBridge.bootstrap,
+      clear: () async {
+        await clearEnterpriseSession(
+          clearIdentity: EnterpriseIdentityBridge.clear,
+          clearToken: () =>
+              bind.mainSetLocalOption(key: 'access_token', value: ''),
+          clearUser: () =>
+              bind.mainSetLocalOption(key: 'user_info', value: ''),
+        );
       },
     );
     final applied = await coordinator.applyLogin(response);

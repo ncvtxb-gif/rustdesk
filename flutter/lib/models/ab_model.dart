@@ -573,8 +573,8 @@ class AbModel {
 
   List<dynamic> _serializeCache() {
     var res = [];
-    final enterpriseWindows = isWindows &&
-        bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y';
+    final enterpriseWindows =
+        isWindows && bind.mainIsEnterpriseWindowsBuild();
     addressbooks.forEach((key, value) {
       if (!value.isPersonal() && key != current.name()) return;
       res.add({

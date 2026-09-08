@@ -9,6 +9,12 @@ import 'package:get/get.dart';
 import 'dart:convert';
 import '../utils/http_service.dart' as http;
 
+bool shouldPersistGroupPeerHash({
+  required bool enterpriseWindows,
+  required bool isAdmin,
+}) =>
+    enterpriseWindows && isAdmin;
+
 class GroupModel {
   final RxBool groupLoading = false.obs;
   final RxString groupLoadError = "".obs;
@@ -296,11 +302,18 @@ class GroupModel {
 
   void _saveCache() {
     try {
+      final includeManagedHash = shouldPersistGroupPeerHash(
+        enterpriseWindows:
+            isWindows && bind.mainIsEnterpriseWindowsBuild(),
+        isAdmin: gFFI.userModel.isAdmin.value,
+      );
       final map = (<String, dynamic>{
         "access_token": bind.mainGetLocalOption(key: 'access_token'),
         "device_groups": deviceGroups.map((e) => e.toGroupCacheJson()).toList(),
         "users": users.map((e) => e.toGroupCacheJson()).toList(),
-        'peers': peers.map((e) => e.toGroupCacheJson()).toList()
+        'peers': peers
+            .map((e) => e.toGroupCacheJson(includingHash: includeManagedHash))
+            .toList()
       });
       bind.mainSaveGroup(json: jsonEncode(map));
     } catch (e) {

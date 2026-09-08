@@ -3504,15 +3504,34 @@ fn try_get_password_from_personal_ab(lc: Arc<RwLock<LoginConfigHandler>>, passwo
             .flat_map(|a| a.peers.iter())
             .find(|p| p.id == id)
         {
-            if let Ok(hash_password) = base64::decode(p.hash.clone(), base64::Variant::Original) {
-                if !hash_password.is_empty() {
-                    *password = hash_password.clone();
-                    lc.write().unwrap().password_source =
-                        PasswordSource::PersonalAb(hash_password);
-                }
+            if let Some(hash_password) = decode_cached_auth_hash(&p.hash) {
+                *password = hash_password.clone();
+                lc.write().unwrap().password_source = PasswordSource::PersonalAb(hash_password);
             }
         }
     }
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    if password.is_empty() && !access_token.is_empty() {
+        let group = config::Group::load();
+        if access_token == group.access_token {
+            let id = lc.read().unwrap().id.clone();
+            if let Some(hash_password) = group
+                .peers
+                .iter()
+                .find(|p| p.id == id)
+                .and_then(|p| decode_cached_auth_hash(&p.hash))
+            {
+                *password = hash_password.clone();
+                lc.write().unwrap().password_source = PasswordSource::PersonalAb(hash_password);
+            }
+        }
+    }
+}
+
+fn decode_cached_auth_hash(encoded: &str) -> Option<Vec<u8>> {
+    base64::decode(encoded, base64::Variant::Original)
+        .ok()
+        .filter(|decoded| !decoded.is_empty())
 }
 
 #[inline]
@@ -3522,7 +3541,7 @@ fn address_book_entry_can_supply_hash(personal: bool) -> bool {
 
 #[cfg(test)]
 mod enterprise_address_book_tests {
-    use super::address_book_entry_can_supply_hash;
+    use super::{address_book_entry_can_supply_hash, decode_cached_auth_hash};
 
     #[test]
     fn personal_address_book_hash_remains_available() {
@@ -3534,6 +3553,16 @@ mod enterprise_address_book_tests {
         assert_eq!(
             address_book_entry_can_supply_hash(false),
             cfg!(all(target_os = "windows", feature = "enterprise-windows"))
+        );
+    }
+
+    #[test]
+    fn cached_auth_hash_requires_nonempty_base64() {
+        assert!(decode_cached_auth_hash("").is_none());
+        assert!(decode_cached_auth_hash("not base64").is_none());
+        assert_eq!(
+            decode_cached_auth_hash("AQID"),
+            Some(vec![1_u8, 2_u8, 3_u8])
         );
     }
 }

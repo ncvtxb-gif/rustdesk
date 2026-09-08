@@ -74,8 +74,7 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isDisableSettings() &&
         !shouldUseEnterpriseWindowsGate(
             isWindows: isWindows,
-            enterpriseBuild:
-                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y') &&
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild()) &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
@@ -828,8 +827,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
     super.build(context);
     final enterprisePolicy = shouldUseEnterpriseWindowsGate(
             isWindows: isWindows,
-            enterpriseBuild:
-                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')
+                enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
         ? EnterpriseUiPolicy.enabled
         : EnterpriseUiPolicy.disabled;
     return SingleChildScrollView(

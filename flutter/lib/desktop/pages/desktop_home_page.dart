@@ -82,8 +82,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final isOutgoingOnly = bind.isOutgoingOnly();
     final enterprisePolicy = shouldUseEnterpriseWindowsGate(
             isWindows: isWindows,
-            enterpriseBuild:
-                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
         ? EnterpriseUiPolicy.enabled
         : EnterpriseUiPolicy.disabled;
     final children = <Widget>[

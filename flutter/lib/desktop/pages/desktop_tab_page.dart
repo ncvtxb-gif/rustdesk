@@ -73,22 +73,30 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     super.initState();
     if (shouldUseEnterpriseWindowsGate(
         isWindows: isWindows,
-        enterpriseBuild:
-            bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')) {
-      EnterpriseIdentityBridge.apply = (device) async {
-        final dynamic bridge = bind;
-        final String error = await bridge.mainApplyManagedIdentity(
-          id: device.rustdeskId,
-          password: device.permanentPassword,
+        enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())) {
+      EnterpriseIdentityBridge.bootstrap = (accessToken) async {
+        final String error = await bind.mainBootstrapManagedIdentity(
+          accessToken: accessToken,
         );
         return error.isEmpty;
       };
-      EnterpriseIdentityBridge.rollback = () async {
-        final dynamic bridge = bind;
-        await bridge.mainClearManagedIdentity();
+      EnterpriseIdentityBridge.clear = () async {
+        await bind.mainClearManagedIdentity();
       };
+      _initializeManagedIdentity();
     }
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  Future<void> _initializeManagedIdentity() async {
+    var active = false;
+    try {
+      active = await bind.mainIsManagedIdentityActive();
+    } catch (e) {
+      debugPrint('Failed to query managed identity marker: $e');
+    }
+    gFFI.userModel.initializeManagedIdentity(active);
+    gFFI.userModel.refreshCurrentUser();
   }
 
   /*
@@ -126,8 +134,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 ),
               ),
             )));
-    final enterpriseBuild =
-        bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y';
+    final enterpriseBuild = bind.mainIsEnterpriseWindowsBuild();
     if (shouldUseEnterpriseWindowsGate(
         isWindows: isWindows, enterpriseBuild: enterpriseBuild)) {
       return Obx(() => EnterpriseFeishuLoginGate(
