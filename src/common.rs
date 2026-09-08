@@ -2324,7 +2324,10 @@ pub fn get_control_permission(
 #[inline]
 pub fn enterprise_services_allowed() -> bool {
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-    return enterprise_services_allowed_for(Config::is_managed_identity_active());
+    return enterprise_services_allowed_for(
+        Config::is_managed_identity_active()
+            && !crate::hbbs_http::managed_device::bootstrap_in_progress(),
+    );
     #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
     true
 }
