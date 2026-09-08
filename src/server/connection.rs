@@ -346,6 +346,22 @@ const SEND_TIMEOUT_VIDEO: u64 = 12_000;
 const SEND_TIMEOUT_OTHER: u64 = SEND_TIMEOUT_VIDEO * 10;
 const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
 
+#[inline]
+fn inbound_session_allowed(enterprise_services_allowed: bool) -> bool {
+    enterprise_services_allowed
+}
+
+#[cfg(test)]
+mod enterprise_inbound_gate_tests {
+    use super::inbound_session_allowed;
+
+    #[test]
+    fn inbound_session_closes_when_managed_identity_becomes_inactive() {
+        assert!(inbound_session_allowed(true));
+        assert!(!inbound_session_allowed(false));
+    }
+}
+
 impl Connection {
     pub async fn start(
         addr: SocketAddr,
@@ -907,6 +923,11 @@ impl Connection {
                     }
                 }
                 _ = second_timer.tick() => {
+                    if !inbound_session_allowed(crate::common::enterprise_services_allowed()) {
+                        conn.send_close_reason_no_retry("Enterprise authentication expired").await;
+                        conn.on_close("managed identity inactive or expired", true).await;
+                        break;
+                    }
                     #[cfg(windows)]
                     conn.portable_check();
                     raii::AuthedConnID::check_wake_lock_on_setting_changed();
@@ -1117,6 +1138,8 @@ impl Connection {
             log::info!("Running port forwarding loop");
             self.stream.set_raw();
             let mut hbbs_rx = crate::hbbs_http::sync::signal_receiver();
+            let mut enterprise_gate_timer =
+                crate::rustdesk_interval(time::interval(Duration::from_secs(1)));
             loop {
                 tokio::select! {
                     Some(data) = rx_from_cm.recv() => {
@@ -1147,6 +1170,11 @@ impl Connection {
                             bail!("Stream reset by the peer");
                         }
                     },
+                    _ = enterprise_gate_timer.tick() => {
+                        if !inbound_session_allowed(crate::common::enterprise_services_allowed()) {
+                            bail!("managed identity inactive or expired");
+                        }
+                    }
                     _ = self.timer.tick() => {
                         if last_recv_time.elapsed() >= H1 {
                             bail!("Timeout");
@@ -1217,6 +1245,11 @@ impl Connection {
 
     async fn on_open(&mut self, addr: SocketAddr) -> bool {
         log::debug!("#{} Connection opened from {}.", self.inner.id, addr);
+        if !inbound_session_allowed(crate::common::enterprise_services_allowed()) {
+            self.send_login_error("Enterprise authentication is required")
+                .await;
+            return false;
+        }
         if !self.check_whitelist(&addr).await {
             return false;
         }

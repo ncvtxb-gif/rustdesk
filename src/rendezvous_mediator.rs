@@ -836,6 +836,10 @@ async fn direct_server(server: ServerPtr) {
                 continue;
             }
             if let Ok(Ok((stream, addr))) = hbb_common::timeout(1000, l.accept()).await {
+                if !crate::common::enterprise_services_allowed() {
+                    drop(stream);
+                    continue;
+                }
                 stream.set_nodelay(true).ok();
                 log::info!("direct access from {}", addr);
                 let local_addr = stream
