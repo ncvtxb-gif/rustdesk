@@ -2077,8 +2077,8 @@ pub fn main_set_permanent_password(password: String) {
 }
 
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-pub fn main_apply_managed_identity(id: String, password: String) -> String {
-    crate::ipc::apply_managed_identity(id, password)
+pub fn main_bootstrap_managed_identity(access_token: String) -> String {
+    crate::ipc::bootstrap_managed_identity(access_token)
         .err()
         .map(|err| err.to_string())
         .unwrap_or_default()
@@ -2095,6 +2095,10 @@ pub fn main_clear_managed_identity() -> String {
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 pub fn main_is_managed_identity_active() -> bool {
     crate::ipc::is_managed_identity_active()
+}
+
+pub fn main_is_enterprise_windows_build() -> SyncReturn<bool> {
+    SyncReturn(cfg!(all(target_os = "windows", feature = "enterprise-windows")))
 }
 
 pub fn main_check_super_user_permission() -> bool {

@@ -288,7 +288,7 @@ pub enum Data {
     Test,
     SyncConfig(Option<Box<(Config, Config2)>>),
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-    ManagedIdentity((String, String)),
+    BootstrapManagedIdentity(String),
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
     ClearManagedIdentity,
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
@@ -895,8 +895,9 @@ async fn handle(data: Data, stream: &mut Connection) {
             }
         },
         #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-        Data::ManagedIdentity((id, password)) => {
-            let result = Config::apply_managed_identity(&id, &password)
+        Data::BootstrapManagedIdentity(access_token) => {
+            let result = crate::hbbs_http::managed_device::bootstrap(&access_token)
+                .await
                 .map_err(|err| err.to_string());
             if result.is_ok() {
                 RendezvousMediator::restart();
@@ -1206,8 +1207,8 @@ pub async fn set_config(name: &str, value: String) -> ResultType<()> {
 
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 #[tokio::main(flavor = "current_thread")]
-pub async fn apply_managed_identity(id: String, password: String) -> ResultType<()> {
-    managed_identity_request(Data::ManagedIdentity((id, password))).await
+pub async fn bootstrap_managed_identity(access_token: String) -> ResultType<()> {
+    managed_identity_request(Data::BootstrapManagedIdentity(access_token)).await
 }
 
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
@@ -1691,6 +1692,13 @@ mod test {
         assert!(is_managed_config_name("permanent-password"));
         assert!(is_managed_config_name("temporary-password"));
         assert!(!is_managed_config_name("salt"));
+    }
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn enterprise_rejects_forged_raw_identity_payload() {
+        let raw = r#"{"t":"ManagedIdentity","c":["123456789","forged-secret"]}"#;
+        assert!(serde_json::from_str::<Data>(raw).is_err());
     }
     #[test]
     fn verify_ffi_enum_data_size() {

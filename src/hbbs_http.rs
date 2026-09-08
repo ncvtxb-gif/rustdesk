@@ -6,6 +6,8 @@ use serde_json::{Map, Value};
 pub mod account;
 pub mod downloader;
 mod http_client;
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub mod managed_device;
 pub mod record_upload;
 pub mod sync;
 pub use http_client::{
