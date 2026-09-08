@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,8 @@ import 'enterprise_identity.dart';
 bool refreshingUser = false;
 
 class UserModel {
+  static const _renewalPolicy = EnterpriseRenewalPolicy();
+  Timer? _managedRenewalTimer;
   final RxString userName = ''.obs;
   final RxString displayName = ''.obs;
   final RxString avatar = ''.obs;
@@ -57,6 +60,10 @@ class UserModel {
     networkError.value = '';
     final token = bind.mainGetLocalOption(key: 'access_token');
     if (token == '') {
+      if (bind.mainIsEnterpriseWindowsBuild()) {
+        await reset(resetOther: true);
+        return;
+      }
       enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
       await updateOtherModels();
       return;
@@ -105,6 +112,7 @@ class UserModel {
         outcome: EnterpriseRefreshOutcome.success,
         managedIdentityActive: managedIdentityActive.value,
       );
+      _scheduleManagedRenewal(retry: !managedIdentityActive.value);
     } catch (e) {
       debugPrint('Failed to refreshCurrentUser: $e');
       enterpriseAuthState.value = enterpriseStateAfterRefresh(
@@ -144,6 +152,7 @@ class UserModel {
   }
 
   Future<bool> reset({bool resetOther = false}) async {
+    _managedRenewalTimer?.cancel();
     // Clearing the service-side identity is idempotent and must complete before
     // credentials are removed, including after a 401 or a partial bootstrap.
     final result = await clearEnterpriseSession(
@@ -159,12 +168,7 @@ class UserModel {
           'Failed to clear managed identity after retries: ${result.error}';
       return false;
     }
-    userName.value = '';
-    displayName.value = '';
-    avatar.value = '';
-    isAdmin.value = false;
-    managedIdentityActive.value = false;
-    enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+    _clearInMemorySession();
     return true;
   }
 
@@ -183,6 +187,7 @@ class UserModel {
   void initializeManagedIdentity(bool active) {
     managedIdentityActive.value = active;
     enterpriseAuthState.value = EnterpriseAuthState.checking;
+    if (active) _scheduleManagedRenewal();
   }
 
   Future<bool> applyEnterpriseLoginResponse(LoginResponse response) async {
@@ -214,7 +219,62 @@ class UserModel {
         key: 'user_info', value: jsonEncode(response.user!));
     _parseAndUpdateUser(response.user!);
     setManagedIdentityApplied(true);
+    _scheduleManagedRenewal();
     return true;
+  }
+
+  void _scheduleManagedRenewal({bool retry = false}) {
+    if (!bind.mainIsEnterpriseWindowsBuild()) return;
+    final token = bind.mainGetLocalOption(key: 'access_token');
+    if (token.isEmpty) return;
+    _managedRenewalTimer?.cancel();
+    final randomUnit = Random.secure().nextDouble();
+    final delay = retry
+        ? _renewalPolicy.retryDelay(randomUnit)
+        : _renewalPolicy.normalDelay(randomUnit);
+    _managedRenewalTimer = Timer(delay, _renewManagedIdentity);
+  }
+
+  Future<void> _renewManagedIdentity() async {
+    final token = bind.mainGetLocalOption(key: 'access_token');
+    final result = await EnterpriseIdentityRenewal(
+      renew: EnterpriseIdentityBridge.renew,
+      isActive: EnterpriseIdentityBridge.isActive,
+    ).renew(token);
+    switch (result) {
+      case EnterpriseRenewalResult.renewed:
+        managedIdentityActive.value = true;
+        enterpriseAuthState.value = EnterpriseAuthState.authenticated;
+        networkError.value = '';
+        _scheduleManagedRenewal();
+        break;
+      case EnterpriseRenewalResult.offlineValid:
+        managedIdentityActive.value = true;
+        enterpriseAuthState.value = EnterpriseAuthState.offlineGrace;
+        networkError.value = 'Managed identity renewal is temporarily unavailable';
+        _scheduleManagedRenewal(retry: true);
+        break;
+      case EnterpriseRenewalResult.expired:
+        managedIdentityActive.value = false;
+        enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+        networkError.value = 'Managed identity session expired; renewal is required';
+        _scheduleManagedRenewal(retry: true);
+        break;
+      case EnterpriseRenewalResult.revoked:
+        if (await reset(resetOther: true)) {
+          networkError.value = 'Managed identity login session was rejected';
+        }
+        break;
+    }
+  }
+
+  void _clearInMemorySession() {
+    userName.value = '';
+    displayName.value = '';
+    avatar.value = '';
+    isAdmin.value = false;
+    managedIdentityActive.value = false;
+    enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
   }
 
   _parseAndUpdateUser(UserPayload user) {
@@ -239,22 +299,37 @@ class UserModel {
 
   Future<void> logOut({String? apiServer}) async {
     final tag = gFFI.dialogManager.showLoading(translate('Waiting'));
+    _managedRenewalTimer?.cancel();
     try {
       final url = apiServer ?? await bind.mainGetApiServer();
       final authHeaders = getHttpHeaders();
       authHeaders['Content-Type'] = "application/json";
-      await http
-          .post(Uri.parse('$url/api/logout'),
-              body: jsonEncode({
-                'id': await bind.mainGetMyId(),
-                'uuid': await bind.mainGetUuid(),
-              }),
-              headers: authHeaders)
-          .timeout(Duration(seconds: 2));
-    } catch (e) {
-      debugPrint("request /api/logout failed: err=$e");
+      final body = jsonEncode({
+        'id': await bind.mainGetMyId(),
+        'uuid': await bind.mainGetUuid(),
+      });
+      final result = await completeEnterpriseLogout(
+        clearIdentity: EnterpriseIdentityBridge.clear,
+        clearCaches: _clearEnterpriseCaches,
+        notifyRemoteLogout: () async {
+          await http
+              .post(Uri.parse('$url/api/logout'),
+                  body: body, headers: authHeaders)
+              .timeout(Duration(seconds: 2));
+        },
+        clearToken: () =>
+            bind.mainSetLocalOption(key: 'access_token', value: ''),
+        clearUser: () =>
+            bind.mainSetLocalOption(key: 'user_info', value: ''),
+      );
+      if (!result.success) {
+        enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+        networkError.value =
+            'Failed to clear managed identity after retries: ${result.error}';
+        return;
+      }
+      _clearInMemorySession();
     } finally {
-      await reset(resetOther: true);
       gFFI.dialogManager.dismissByTag(tag);
     }
   }

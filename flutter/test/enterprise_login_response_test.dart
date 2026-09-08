@@ -9,7 +9,6 @@ void main() {
     'user': {'name': 'alice', 'status': 1},
     'device': {
       'rustdesk_id': '123456789',
-      'permanent_password': 'hidden-secret',
       'password_version': 2,
       'status': 'active',
     },
@@ -20,9 +19,51 @@ void main() {
       'type': 'access_token',
       'access_token': 'token',
       'user': {'name': 'alice', 'status': 1},
+      'device': {
+        'rustdesk_id': '123456789',
+        'password_version': 2,
+        'status': 'active',
+      },
     });
     expect(response.access_token, 'token');
     expect(response.user?.name, 'alice');
+  });
+
+  test('renewal policy adds bounded jitter to avoid startup bursts', () {
+    const policy = EnterpriseRenewalPolicy();
+    expect(policy.normalDelay(0), const Duration(hours: 6));
+    expect(policy.normalDelay(1), const Duration(hours: 6, minutes: 30));
+    expect(policy.retryDelay(0), const Duration(minutes: 5));
+    expect(policy.retryDelay(1), const Duration(minutes: 6));
+  });
+
+  test('renewal keeps an old valid identity on transient network failure',
+      () async {
+    final renewal = EnterpriseIdentityRenewal(
+      renew: (_) async => 'managed device bootstrap request failed',
+      isActive: () async => true,
+    );
+    expect(await renewal.renew('token'), EnterpriseRenewalResult.offlineValid);
+  });
+
+  test('renewal fails closed once the old identity has expired', () async {
+    final renewal = EnterpriseIdentityRenewal(
+      renew: (_) async => 'managed device bootstrap request failed',
+      isActive: () async => false,
+    );
+    expect(await renewal.renew('token'), EnterpriseRenewalResult.expired);
+  });
+
+  test('renewal rejects server auth or device denial while old marker is valid',
+      () async {
+    for (final status in [400, 401, 403]) {
+      final renewal = EnterpriseIdentityRenewal(
+        renew: (_) async =>
+            'managed device bootstrap was rejected with HTTP $status',
+        isActive: () async => true,
+      );
+      expect(await renewal.renew('token'), EnterpriseRenewalResult.revoked);
+    }
   });
 
   test('enterprise login bootstraps Rust using access token only', () async {
@@ -148,5 +189,34 @@ void main() {
 
     expect(result.success, isTrue);
     expect(events, ['identity-1', 'identity-2', 'token', 'user', 'caches']);
+  });
+
+  test('logout notifies API only after managed identity clear', () async {
+    final events = <String>[];
+    final result = await completeEnterpriseLogout(
+      clearIdentity: () async => events.add('identity'),
+      clearCaches: () async => events.add('caches'),
+      notifyRemoteLogout: () async => events.add('api'),
+      clearToken: () async => events.add('token'),
+      clearUser: () async => events.add('user'),
+      retryDelay: (_) async {},
+    );
+    expect(result.success, isTrue);
+    expect(events, ['identity', 'caches', 'api', 'token', 'user']);
+  });
+
+  test('logout does not notify API or delete credentials when clear fails',
+      () async {
+    final events = <String>[];
+    final result = await completeEnterpriseLogout(
+      clearIdentity: () async => throw StateError('service active'),
+      clearCaches: () async => events.add('caches'),
+      notifyRemoteLogout: () async => events.add('api'),
+      clearToken: () async => events.add('token'),
+      clearUser: () async => events.add('user'),
+      retryDelay: (_) async {},
+    );
+    expect(result.success, isFalse);
+    expect(events, ['caches']);
   });
 }
