@@ -200,4 +200,3 @@
 - [ ] Exercise fresh install, login allocation, restart persistence, admin auto-connect, logout/401 shutdown, network failure grace, locked settings, and LAN silence.
 - [ ] Perform task-level and whole-branch code review; resolve Important/Critical findings.
 - [ ] Present commits, test evidence, known limitations, build instructions, and rollback steps. Do not push until the user authorizes it.
-
