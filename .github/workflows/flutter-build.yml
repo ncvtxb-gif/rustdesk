@@ -1,6 +1,20 @@
 name: Build the flutter version of the RustDesk
 
 on:
+  workflow_dispatch:
+    inputs:
+      upload-artifact:
+        description: "Upload build artifacts"
+        type: boolean
+        default: true
+      upload-tag:
+        description: "Artifact tag"
+        type: string
+        default: "enterprise-windows"
+      enterprise-windows:
+        description: "Build the Windows artifact with the enterprise-windows feature"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       upload-artifact:
@@ -9,6 +23,9 @@ on:
       upload-tag:
         type: string
         default: "nightly"
+      enterprise-windows:
+        type: boolean
+        default: false
 
 # NOTE: F-Droid builder script 'flutter/build_fdroid.sh' reads environment
 # variables from this workflow!
@@ -167,10 +184,34 @@ jobs:
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
 
+      - name: Validate enterprise Windows build secrets
+        if: ${{ inputs.enterprise-windows }}
+        shell: pwsh
+        env:
+          ENTERPRISE_RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
+          ENTERPRISE_RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
+          ENTERPRISE_API_SERVER: ${{ secrets.API_SERVER }}
+        run: |
+          $missing = @()
+          if ([string]::IsNullOrWhiteSpace($env:ENTERPRISE_RS_PUB_KEY)) { $missing += "RS_PUB_KEY" }
+          if ([string]::IsNullOrWhiteSpace($env:ENTERPRISE_RENDEZVOUS_SERVER)) { $missing += "RENDEZVOUS_SERVER" }
+          if ([string]::IsNullOrWhiteSpace($env:ENTERPRISE_API_SERVER)) { $missing += "API_SERVER" }
+          if ($missing.Count -gt 0) {
+            throw "Missing required enterprise repository secrets: $($missing -join ', ')"
+          }
+          $apiUri = $null
+          if (-not [Uri]::TryCreate($env:ENTERPRISE_API_SERVER, [UriKind]::Absolute, [ref]$apiUri) -or $apiUri.Scheme -ne "https") {
+            throw "API_SERVER must be an absolute HTTPS URL"
+          }
+
       - name: Build rustdesk
         run: |
           # Windows: build RustDesk
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          $enterpriseArgs = @()
+          if ("${{ inputs.enterprise-windows }}" -eq "true") {
+            $enterpriseArgs += "--enterprise-windows"
+          }
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack @enterpriseArgs
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
 
           # Download usbmmidd_v2.zip and extract it to ./rustdesk

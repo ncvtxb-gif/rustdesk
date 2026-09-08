@@ -5,6 +5,7 @@ import pathlib
 import platform
 import zipfile
 import urllib.request
+import urllib.parse
 import shutil
 import hashlib
 import argparse
@@ -123,6 +124,12 @@ def make_parser():
         '--portable',
         action='store_true',
         help='Build windows portable'
+    )
+    parser.add_argument(
+        '--enterprise-windows',
+        action='store_true',
+        help='Enable the enterprise-windows Cargo feature (Windows only)',
+        default=False,
     )
     parser.add_argument(
         '--unix-file-copy-paste',
@@ -281,11 +288,32 @@ def get_features(args):
         features.append('flutter')
     if args.unix_file_copy_paste:
         features.append('unix-file-copy-paste')
+    if args.enterprise_windows:
+        features.append('enterprise-windows')
     if osx:
         if args.screencapturekit:
             features.append('screencapturekit')
     print("features:", features)
     return features
+
+
+def validate_enterprise_windows_build(args, parser):
+    if not args.enterprise_windows:
+        return
+    if not windows:
+        parser.error('--enterprise-windows is supported only on Windows')
+
+    required = ('RS_PUB_KEY', 'RENDEZVOUS_SERVER', 'API_SERVER')
+    missing = [name for name in required if not os.environ.get(name, '').strip()]
+    if missing:
+        parser.error(
+            'enterprise Windows build requires environment variables: '
+            + ', '.join(missing)
+        )
+
+    api_url = urllib.parse.urlparse(os.environ['API_SERVER'].strip())
+    if api_url.scheme.lower() != 'https' or not api_url.netloc:
+        parser.error('API_SERVER must be an absolute HTTPS URL')
 
 
 def generate_control_file(version):
@@ -466,6 +494,8 @@ def main():
     global skip_cargo
     parser = make_parser()
     args = parser.parse_args()
+
+    validate_enterprise_windows_build(args, parser)
 
     if os.path.exists(exe_path):
         os.unlink(exe_path)

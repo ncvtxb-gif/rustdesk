@@ -26,9 +26,9 @@ RustDesk IDs and allocation UUIDs are globally unique and never reused after arc
 
 Add `DeviceIdentity` with allocation UUID, user ID, machine UUID, RustDesk ID, encrypted credential, credential version, status, last-auth timestamp, and timestamps. Enforce unique indexes on allocation UUID, RustDesk ID, and `(user_id, machine_uuid)`.
 
-OIDC completion performs token creation and `AllocateOrGetDeviceIdentity` as one explicit transaction. First login generates the ID and a cryptographically random credential, encrypts the credential with an API master key using authenticated encryption, and commits both identity and token. Conflicts retry through database uniqueness, not a preflight-only check. Empty machine UUID, non-Windows enterprise clients, disabled users, and archived identities fail closed.
+OIDC completion creates the access token and identifies the authenticated user. First device bootstrap generates the ID and a cryptographically random credential, encrypts the credential with an API master key using authenticated encryption, and commits the identity. Conflicts retry through database uniqueness, not a preflight-only check. Empty machine UUID, non-Windows enterprise clients, disabled users, and archived identities fail closed.
 
-The successful login response adds an optional `device` object containing `rustdesk_id`, `permanent_password`, `password_version`, and status. The credential is never logged. Old clients ignore the optional field.
+The successful OIDC login response returns the access token only; it never returns `permanent_password`. The Windows service exchanges that bearer token at `POST /api/managed-device/bootstrap` with `{machine_uuid, platform: "windows"}`. A successful bootstrap returns `rustdesk_id`, the hidden `permanent_password`, `password_version`, status, echoed `machine_uuid`, and `session_expires_at`. The service validates the response, applies the identity atomically, uploads the compatible authentication hash, and never logs or persists the token or plaintext credential outside the managed identity store.
 
 ## Client State Machine
 
@@ -63,4 +63,3 @@ Use Cargo feature `enterprise-windows` combined with `target_os = "windows"`. Or
 ## Verification
 
 Tests cover API idempotency and concurrency, account/device combinations, archival, encryption, response filtering, and admin-only address-book material. Rust tests cover both ID-generation entry points, atomic identity apply/clear, setter bypasses, permanent-only verification, and service/LAN gates. Flutter tests cover the non-dismissible Feishu-only gate and authenticated restoration. Integration verifies fresh install, OIDC allocation, hbbs registration only after login, admin automatic connection, logout/401 shutdown, network failure grace, settings locks, LAN silence, restart persistence, and macOS/non-enterprise regression.
-
