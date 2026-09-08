@@ -19,7 +19,10 @@ bool refreshingUser = false;
 
 class UserModel {
   static const _renewalPolicy = EnterpriseRenewalPolicy();
+  final _identityOperations = EnterpriseIdentityOperationQueue();
   Timer? _managedRenewalTimer;
+  Timer? _managedActivePollTimer;
+  int _identityGeneration = 0;
   final RxString userName = ''.obs;
   final RxString displayName = ''.obs;
   final RxString avatar = ''.obs;
@@ -152,16 +155,19 @@ class UserModel {
   }
 
   Future<bool> reset({bool resetOther = false}) async {
+    _identityGeneration++;
     _managedRenewalTimer?.cancel();
+    _managedActivePollTimer?.cancel();
     // Clearing the service-side identity is idempotent and must complete before
     // credentials are removed, including after a 401 or a partial bootstrap.
-    final result = await clearEnterpriseSession(
-      clearIdentity: EnterpriseIdentityBridge.clear,
-      clearToken: () =>
-          bind.mainSetLocalOption(key: 'access_token', value: ''),
-      clearUser: () => bind.mainSetLocalOption(key: 'user_info', value: ''),
-      clearCaches: resetOther ? _clearEnterpriseCaches : () async {},
-    );
+    final result = await _identityOperations.run(() => clearEnterpriseSession(
+          clearIdentity: EnterpriseIdentityBridge.clear,
+          clearToken: () =>
+              bind.mainSetLocalOption(key: 'access_token', value: ''),
+          clearUser: () =>
+              bind.mainSetLocalOption(key: 'user_info', value: ''),
+          clearCaches: resetOther ? _clearEnterpriseCaches : () async {},
+        ));
     if (!result.success) {
       enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
       networkError.value =
@@ -187,10 +193,15 @@ class UserModel {
   void initializeManagedIdentity(bool active) {
     managedIdentityActive.value = active;
     enterpriseAuthState.value = EnterpriseAuthState.checking;
-    if (active) _scheduleManagedRenewal();
+    if (active) {
+      _scheduleManagedRenewal();
+      _startManagedActivePolling();
+    }
   }
 
   Future<bool> applyEnterpriseLoginResponse(LoginResponse response) async {
+    final generation = ++_identityGeneration;
+    _managedRenewalTimer?.cancel();
     final coordinator = EnterpriseIdentityCoordinator(
       bootstrap: EnterpriseIdentityBridge.bootstrap,
       clear: () async {
@@ -208,7 +219,9 @@ class UserModel {
         }
       },
     );
-    final applied = await coordinator.applyLogin(response);
+    final applied =
+        await _identityOperations.run(() => coordinator.applyLogin(response));
+    if (generation != _identityGeneration) return false;
     if (!applied) {
       setManagedIdentityApplied(false);
       return false;
@@ -220,6 +233,7 @@ class UserModel {
     _parseAndUpdateUser(response.user!);
     setManagedIdentityApplied(true);
     _scheduleManagedRenewal();
+    _startManagedActivePolling();
     return true;
   }
 
@@ -232,21 +246,29 @@ class UserModel {
     final delay = retry
         ? _renewalPolicy.retryDelay(randomUnit)
         : _renewalPolicy.normalDelay(randomUnit);
-    _managedRenewalTimer = Timer(delay, _renewManagedIdentity);
+    final generation = _identityGeneration;
+    _managedRenewalTimer =
+        Timer(delay, () => _renewManagedIdentity(generation));
   }
 
-  Future<void> _renewManagedIdentity() async {
+  Future<void> _renewManagedIdentity(int generation) async {
+    if (generation != _identityGeneration) return;
     final token = bind.mainGetLocalOption(key: 'access_token');
-    final result = await EnterpriseIdentityRenewal(
-      renew: EnterpriseIdentityBridge.renew,
-      isActive: EnterpriseIdentityBridge.isActive,
-    ).renew(token);
+    final result = await _identityOperations.run(() async {
+      if (generation != _identityGeneration) return null;
+      return EnterpriseIdentityRenewal(
+        renewCall: EnterpriseIdentityBridge.renew,
+        isActive: EnterpriseIdentityBridge.isActive,
+      ).renew(token);
+    });
+    if (result == null || generation != _identityGeneration) return;
     switch (result) {
       case EnterpriseRenewalResult.renewed:
         managedIdentityActive.value = true;
         enterpriseAuthState.value = EnterpriseAuthState.authenticated;
         networkError.value = '';
         _scheduleManagedRenewal();
+        _startManagedActivePolling();
         break;
       case EnterpriseRenewalResult.offlineValid:
         managedIdentityActive.value = true;
@@ -266,6 +288,28 @@ class UserModel {
         }
         break;
     }
+  }
+
+  void _startManagedActivePolling() {
+    if (!bind.mainIsEnterpriseWindowsBuild()) return;
+    _managedActivePollTimer?.cancel();
+    final generation = _identityGeneration;
+    _managedActivePollTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (generation != _identityGeneration) return;
+      var active = false;
+      try {
+        active = await EnterpriseIdentityBridge.isActive();
+      } catch (_) {
+        return;
+      }
+      if (!active && generation == _identityGeneration) {
+        managedIdentityActive.value = false;
+        enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+        networkError.value =
+            'Managed identity session expired; renewal is required';
+        _scheduleManagedRenewal(retry: true);
+      }
+    });
   }
 
   void _clearInMemorySession() {
@@ -299,7 +343,9 @@ class UserModel {
 
   Future<void> logOut({String? apiServer}) async {
     final tag = gFFI.dialogManager.showLoading(translate('Waiting'));
+    _identityGeneration++;
     _managedRenewalTimer?.cancel();
+    _managedActivePollTimer?.cancel();
     try {
       final url = apiServer ?? await bind.mainGetApiServer();
       final authHeaders = getHttpHeaders();
@@ -308,19 +354,21 @@ class UserModel {
         'id': await bind.mainGetMyId(),
         'uuid': await bind.mainGetUuid(),
       });
-      final result = await completeEnterpriseLogout(
-        clearIdentity: EnterpriseIdentityBridge.clear,
-        clearCaches: _clearEnterpriseCaches,
-        notifyRemoteLogout: () async {
-          await http
-              .post(Uri.parse('$url/api/logout'),
-                  body: body, headers: authHeaders)
-              .timeout(Duration(seconds: 2));
-        },
-        clearToken: () =>
-            bind.mainSetLocalOption(key: 'access_token', value: ''),
-        clearUser: () =>
-            bind.mainSetLocalOption(key: 'user_info', value: ''),
+      final result = await _identityOperations.run(
+        () => completeEnterpriseLogout(
+          clearIdentity: EnterpriseIdentityBridge.clear,
+          clearCaches: _clearEnterpriseCaches,
+          notifyRemoteLogout: () async {
+            await http
+                .post(Uri.parse('$url/api/logout'),
+                    body: body, headers: authHeaders)
+                .timeout(Duration(seconds: 2));
+          },
+          clearToken: () =>
+              bind.mainSetLocalOption(key: 'access_token', value: ''),
+          clearUser: () =>
+              bind.mainSetLocalOption(key: 'user_info', value: ''),
+        ),
       );
       if (!result.success) {
         enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;

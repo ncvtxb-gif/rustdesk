@@ -40,7 +40,7 @@ void main() {
   test('renewal keeps an old valid identity on transient network failure',
       () async {
     final renewal = EnterpriseIdentityRenewal(
-      renew: (_) async => 'managed device bootstrap request failed',
+      renewCall: (_) async => 'managed device bootstrap request failed',
       isActive: () async => true,
     );
     expect(await renewal.renew('token'), EnterpriseRenewalResult.offlineValid);
@@ -48,7 +48,7 @@ void main() {
 
   test('renewal fails closed once the old identity has expired', () async {
     final renewal = EnterpriseIdentityRenewal(
-      renew: (_) async => 'managed device bootstrap request failed',
+      renewCall: (_) async => 'managed device bootstrap request failed',
       isActive: () async => false,
     );
     expect(await renewal.renew('token'), EnterpriseRenewalResult.expired);
@@ -58,12 +58,27 @@ void main() {
       () async {
     for (final status in [400, 401, 403]) {
       final renewal = EnterpriseIdentityRenewal(
-        renew: (_) async =>
+        renewCall: (_) async =>
             'managed device bootstrap was rejected with HTTP $status',
         isActive: () async => true,
       );
       expect(await renewal.renew('token'), EnterpriseRenewalResult.revoked);
     }
+  });
+
+  test('identity operation queue orders logout clear after active renewal',
+      () async {
+    final queue = EnterpriseIdentityOperationQueue();
+    final events = <String>[];
+    final renewal = queue.run(() async {
+      events.add('renew-start');
+      await Future<void>.delayed(Duration.zero);
+      events.add('renew-active');
+    });
+    final logout = queue.run(() async => events.add('logout-clear'));
+
+    await Future.wait([renewal, logout]);
+    expect(events, ['renew-start', 'renew-active', 'logout-clear']);
   });
 
   test('enterprise login bootstraps Rust using access token only', () async {

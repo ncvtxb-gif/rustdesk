@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_hbb/common/hbbs/hbbs.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 
@@ -50,18 +52,18 @@ class EnterpriseRenewalPolicy {
 
 class EnterpriseIdentityRenewal {
   const EnterpriseIdentityRenewal({
-    required this.renew,
+    required this.renewCall,
     required this.isActive,
   });
 
-  final RenewManagedIdentity renew;
+  final RenewManagedIdentity renewCall;
   final IsManagedIdentityActive isActive;
 
   Future<EnterpriseRenewalResult> renew(String accessToken) async {
     if (accessToken.isEmpty) return EnterpriseRenewalResult.expired;
     String error;
     try {
-      error = await renew(accessToken);
+      error = await renewCall(accessToken);
     } catch (e) {
       error = e.toString();
     }
@@ -78,6 +80,22 @@ class EnterpriseIdentityRenewal {
     } catch (_) {
       return EnterpriseRenewalResult.expired;
     }
+  }
+}
+
+class EnterpriseIdentityOperationQueue {
+  Future<void> _tail = Future<void>.value();
+
+  Future<T> run<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _tail = _tail.catchError((_) {}).then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (e, stackTrace) {
+        completer.completeError(e, stackTrace);
+      }
+    });
+    return completer.future;
   }
 }
 
