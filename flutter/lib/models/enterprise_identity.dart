@@ -1,22 +1,56 @@
 import 'package:flutter_hbb/common/hbbs/hbbs.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
 
 typedef BootstrapManagedIdentity = Future<bool> Function(String accessToken);
 typedef ClearManagedIdentity = Future<void> Function();
 typedef ClearLocalCredential = Future<void> Function();
+typedef RetryDelay = Future<void> Function(Duration delay);
 
-Future<void> clearEnterpriseSession({
+class EnterpriseClearResult {
+  const EnterpriseClearResult._(this.success, this.error);
+
+  const EnterpriseClearResult.success() : this._(true, '');
+  const EnterpriseClearResult.failure(String error) : this._(false, error);
+
+  final bool success;
+  final String error;
+}
+
+Future<EnterpriseClearResult> clearEnterpriseSession({
   required ClearManagedIdentity clearIdentity,
   required ClearLocalCredential clearToken,
   required ClearLocalCredential clearUser,
+  required ClearLocalCredential clearCaches,
+  int maxAttempts = 3,
+  RetryDelay retryDelay = Future<void>.delayed,
 }) async {
-  try {
-    await clearIdentity();
-  } catch (_) {
-    // Local credentials must still be removed if the idempotent service call
-    // cannot be completed (for example because the service has stopped).
+  Object? lastError;
+  var identityCleared = false;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await clearIdentity();
+      identityCleared = true;
+      break;
+    } catch (e) {
+      lastError = e;
+      if (attempt < maxAttempts) {
+        await retryDelay(Duration(milliseconds: 100 * attempt));
+      }
+    }
   }
-  await clearToken();
-  await clearUser();
+  if (identityCleared) {
+    await clearToken();
+    await clearUser();
+  }
+  // Cached unattended hashes are never retained after a logout/401 attempt.
+  try {
+    await clearCaches();
+  } catch (e) {
+    return EnterpriseClearResult.failure('failed to clear auth caches: $e');
+  }
+  return identityCleared
+      ? const EnterpriseClearResult.success()
+      : EnterpriseClearResult.failure(lastError.toString());
 }
 
 class EnterpriseIdentityCoordinator {
@@ -51,4 +85,19 @@ class EnterpriseIdentityCoordinator {
 class EnterpriseIdentityBridge {
   static BootstrapManagedIdentity bootstrap = (_) async => false;
   static ClearManagedIdentity clear = () async {};
+}
+
+Future<bool> installEnterpriseIdentityBridge() async {
+  if (!bind.mainIsEnterpriseWindowsBuild()) return false;
+  EnterpriseIdentityBridge.bootstrap = (accessToken) async {
+    final error = await bind.mainBootstrapManagedIdentity(
+      accessToken: accessToken,
+    );
+    return error.isEmpty;
+  };
+  EnterpriseIdentityBridge.clear = () async {
+    final error = await bind.mainClearManagedIdentity();
+    if (error.isNotEmpty) throw StateError(error);
+  };
+  return await bind.mainIsManagedIdentityActive();
 }

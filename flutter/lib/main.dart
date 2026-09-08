@@ -28,6 +28,7 @@ import 'consts.dart';
 import 'mobile/pages/home_page.dart';
 import 'mobile/pages/server_page.dart';
 import 'models/platform_model.dart';
+import 'models/enterprise_identity.dart';
 
 import 'package:flutter_hbb/plugin/handlers.dart'
     if (dart.library.html) 'package:flutter_hbb/web/plugin/handlers.dart';
@@ -142,6 +143,15 @@ void runMainApp(bool startService) async {
     gFFI.serverModel.startService();
     bind.pluginSyncUi(syncTo: kAppTypeMain);
     bind.pluginListReload();
+  }
+  if (bind.mainIsEnterpriseWindowsBuild()) {
+    var managedIdentityActive = false;
+    try {
+      managedIdentityActive = await installEnterpriseIdentityBridge();
+    } catch (e) {
+      debugPrint('Failed to initialize enterprise identity bridge: $e');
+    }
+    gFFI.userModel.initializeManagedIdentity(managedIdentityActive);
   }
   await Future.wait([gFFI.abModel.loadCache(), gFFI.groupModel.loadCache()]);
   gFFI.userModel.refreshCurrentUser();

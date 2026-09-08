@@ -3531,7 +3531,7 @@ fn try_get_password_from_personal_ab(lc: Arc<RwLock<LoginConfigHandler>>, passwo
 fn decode_cached_auth_hash(encoded: &str) -> Option<Vec<u8>> {
     base64::decode(encoded, base64::Variant::Original)
         .ok()
-        .filter(|decoded| !decoded.is_empty())
+        .filter(|decoded| decoded.len() == 32)
 }
 
 #[inline]
@@ -3542,6 +3542,7 @@ fn address_book_entry_can_supply_hash(personal: bool) -> bool {
 #[cfg(test)]
 mod enterprise_address_book_tests {
     use super::{address_book_entry_can_supply_hash, decode_cached_auth_hash};
+    use hbb_common::base64;
 
     #[test]
     fn personal_address_book_hash_remains_available() {
@@ -3557,13 +3558,13 @@ mod enterprise_address_book_tests {
     }
 
     #[test]
-    fn cached_auth_hash_requires_nonempty_base64() {
+    fn cached_auth_hash_requires_exact_sha256_length() {
         assert!(decode_cached_auth_hash("").is_none());
         assert!(decode_cached_auth_hash("not base64").is_none());
-        assert_eq!(
-            decode_cached_auth_hash("AQID"),
-            Some(vec![1_u8, 2_u8, 3_u8])
-        );
+        assert!(decode_cached_auth_hash("AQID").is_none());
+        let hash = vec![7_u8; 32];
+        let encoded = base64::encode(hash.clone(), base64::Variant::Original);
+        assert_eq!(decode_cached_auth_hash(&encoded), Some(hash));
     }
 }
 

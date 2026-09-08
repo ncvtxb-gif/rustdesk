@@ -29,12 +29,14 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
     super.key,
     required this.state,
     this.managedIdentityActive = false,
+    this.errorText = '',
     required this.onFeishuLogin,
     required this.authenticatedChild,
   });
 
   final EnterpriseAuthState state;
   final bool managedIdentityActive;
+  final String errorText;
   final Future<void> Function() onFeishuLogin;
   final Widget authenticatedChild;
 
@@ -61,6 +63,13 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
               const SizedBox(height: 20),
+              if (errorText.isNotEmpty) ...[
+                Text(errorText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.error)),
+                const SizedBox(height: 12),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(

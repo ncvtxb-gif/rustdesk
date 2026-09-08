@@ -109,22 +109,44 @@ void main() {
     expect(clears, 2);
   });
 
-  test('session clear awaits identity clear before deleting credentials',
+  test('session clear retries and retains credentials after identity failure',
       () async {
     final events = <String>[];
 
-    await clearEnterpriseSession(
+    final result = await clearEnterpriseSession(
       clearIdentity: () async {
-        events.add('identity-start');
-        await Future<void>.delayed(Duration.zero);
-        events.add('identity-done');
+        events.add('identity');
         throw StateError('idempotent service clear failed');
       },
       clearToken: () async => events.add('token'),
       clearUser: () async => events.add('user'),
+      clearCaches: () async => events.add('caches'),
+      retryDelay: (_) async {},
     );
 
-    expect(events,
-        ['identity-start', 'identity-done', 'token', 'user']);
+    expect(result.success, isFalse);
+    expect(result.error, contains('idempotent service clear failed'));
+    expect(events, ['identity', 'identity', 'identity', 'caches']);
+  });
+
+  test('session clear deletes credentials only after service clear succeeds',
+      () async {
+    final events = <String>[];
+    var attempts = 0;
+
+    final result = await clearEnterpriseSession(
+      clearIdentity: () async {
+        attempts++;
+        events.add('identity-$attempts');
+        if (attempts == 1) throw StateError('transient');
+      },
+      clearToken: () async => events.add('token'),
+      clearUser: () async => events.add('user'),
+      clearCaches: () async => events.add('caches'),
+      retryDelay: (_) async {},
+    );
+
+    expect(result.success, isTrue);
+    expect(events, ['identity-1', 'identity-2', 'token', 'user', 'caches']);
   });
 }

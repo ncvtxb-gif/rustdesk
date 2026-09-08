@@ -8,7 +8,6 @@ import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
-import 'package:flutter_hbb/models/enterprise_identity.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
 // import 'package:flutter/services.dart';
@@ -68,37 +67,6 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (shouldUseEnterpriseWindowsGate(
-        isWindows: isWindows,
-        enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())) {
-      EnterpriseIdentityBridge.bootstrap = (accessToken) async {
-        final String error = await bind.mainBootstrapManagedIdentity(
-          accessToken: accessToken,
-        );
-        return error.isEmpty;
-      };
-      EnterpriseIdentityBridge.clear = () async {
-        await bind.mainClearManagedIdentity();
-      };
-      _initializeManagedIdentity();
-    }
-    // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
-  }
-
-  Future<void> _initializeManagedIdentity() async {
-    var active = false;
-    try {
-      active = await bind.mainIsManagedIdentityActive();
-    } catch (e) {
-      debugPrint('Failed to query managed identity marker: $e');
-    }
-    gFFI.userModel.initializeManagedIdentity(active);
-    gFFI.userModel.refreshCurrentUser();
-  }
-
   /*
   bool _handleKeyEvent(KeyEvent event) {
     if (!mouseIn && event is KeyDownEvent) {
@@ -141,6 +109,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             state: gFFI.userModel.enterpriseAuthState.value,
             managedIdentityActive:
                 gFFI.userModel.managedIdentityActive.value,
+            errorText: gFFI.userModel.networkError.value,
             onFeishuLogin: () async {
               final configuredProvider = bind.mainGetBuildinOption(
                   key: 'enterprise-feishu-oidc-op');

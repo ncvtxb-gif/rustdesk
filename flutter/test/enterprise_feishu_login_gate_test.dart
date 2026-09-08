@@ -50,6 +50,23 @@ void main() {
     expect(loginRequests, 1);
   });
 
+  testWidgets('fail-closed gate displays managed identity clear error',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.unauthenticated,
+        managedIdentityActive: true,
+        errorText: 'Failed to clear managed identity after retries',
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    expect(find.text('desktop-content'), findsNothing);
+    expect(find.text('Failed to clear managed identity after retries'),
+        findsOneWidget);
+  });
+
   testWidgets('authenticated gate restores the original desktop content',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

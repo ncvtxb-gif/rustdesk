@@ -68,6 +68,7 @@ class UserModel {
       'uuid': await bind.mainGetUuid()
     };
     if (refreshingUser) return;
+    var skipOtherModels = false;
     try {
       refreshingUser = true;
       final http.Response response;
@@ -85,6 +86,7 @@ class UserModel {
       refreshingUser = false;
       final status = response.statusCode;
       if (status == 401) {
+        skipOtherModels = true;
         await reset(resetOther: true);
         return;
       }
@@ -113,7 +115,9 @@ class UserModel {
       );
     } finally {
       refreshingUser = false;
-      await updateOtherModels();
+      if (!skipOtherModels) {
+        await updateOtherModels();
+      }
     }
   }
 
@@ -139,18 +143,21 @@ class UserModel {
     }
   }
 
-  Future<void> reset({bool resetOther = false}) async {
+  Future<bool> reset({bool resetOther = false}) async {
     // Clearing the service-side identity is idempotent and must complete before
     // credentials are removed, including after a 401 or a partial bootstrap.
-    await clearEnterpriseSession(
+    final result = await clearEnterpriseSession(
       clearIdentity: EnterpriseIdentityBridge.clear,
       clearToken: () =>
           bind.mainSetLocalOption(key: 'access_token', value: ''),
       clearUser: () => bind.mainSetLocalOption(key: 'user_info', value: ''),
+      clearCaches: resetOther ? _clearEnterpriseCaches : () async {},
     );
-    if (resetOther) {
-      await gFFI.abModel.reset();
-      await gFFI.groupModel.reset();
+    if (!result.success) {
+      enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+      networkError.value =
+          'Failed to clear managed identity after retries: ${result.error}';
+      return false;
     }
     userName.value = '';
     displayName.value = '';
@@ -158,6 +165,12 @@ class UserModel {
     isAdmin.value = false;
     managedIdentityActive.value = false;
     enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
+    return true;
+  }
+
+  Future<void> _clearEnterpriseCaches() async {
+    await gFFI.abModel.reset();
+    await gFFI.groupModel.reset();
   }
 
   void setManagedIdentityApplied(bool active) {
@@ -176,13 +189,18 @@ class UserModel {
     final coordinator = EnterpriseIdentityCoordinator(
       bootstrap: EnterpriseIdentityBridge.bootstrap,
       clear: () async {
-        await clearEnterpriseSession(
+        final result = await clearEnterpriseSession(
           clearIdentity: EnterpriseIdentityBridge.clear,
           clearToken: () =>
               bind.mainSetLocalOption(key: 'access_token', value: ''),
           clearUser: () =>
               bind.mainSetLocalOption(key: 'user_info', value: ''),
+          clearCaches: _clearEnterpriseCaches,
         );
+        if (!result.success) {
+          networkError.value =
+              'Failed to clear managed identity after retries: ${result.error}';
+        }
       },
     );
     final applied = await coordinator.applyLogin(response);
