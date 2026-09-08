@@ -1,6 +1,6 @@
 use hbb_common::{
     anyhow::{anyhow, bail, Context},
-    base64::{self, Variant},
+    base64,
     config::{keys, Config, OVERWRITE_SETTINGS},
     sha2::{Digest, Sha256},
     tls::TlsType,
@@ -96,7 +96,8 @@ fn compatible_password_hash(password: &str, salt: &str) -> String {
     hasher.update(password.as_bytes());
     hasher.update(salt.as_bytes());
     let digest = hasher.finalize();
-    base64::encode(&digest, Variant::Original)
+    #[allow(deprecated)]
+    base64::encode(&digest)
 }
 
 fn validate_bootstrap_response(
