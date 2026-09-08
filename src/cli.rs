@@ -169,6 +169,10 @@ pub async fn start_one_port_forward(
     key: String,
     token: String,
 ) {
+    if !crate::common::enterprise_services_allowed() {
+        log::error!("Enterprise authentication is required before port forwarding");
+        return;
+    }
     crate::common::test_rendezvous_server();
     crate::common::test_nat_type();
     let (sender, mut receiver) = mpsc::unbounded_channel::<Data>();

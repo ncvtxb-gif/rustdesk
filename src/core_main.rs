@@ -764,6 +764,10 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             _ => {}
         }
     }
+    if authority.is_some() && !crate::common::enterprise_services_allowed() {
+        log::warn!("Ignoring connection URI until enterprise authentication succeeds");
+        return Some(Vec::new());
+    }
     let mut uni_links = Default::default();
     if let Some(authority) = authority {
         if let Some(mut id) = id {

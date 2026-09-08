@@ -181,6 +181,22 @@ pub fn get_key_state(key: enigo::Key) -> bool {
     ENIGO.lock().unwrap().get_key_state(key)
 }
 
+#[inline]
+fn outbound_connection_allowed(enterprise_services_allowed: bool) -> bool {
+    enterprise_services_allowed
+}
+
+#[cfg(test)]
+mod enterprise_outbound_gate_tests {
+    use super::outbound_connection_allowed;
+
+    #[test]
+    fn outbound_connection_requires_active_managed_session() {
+        assert!(outbound_connection_allowed(true));
+        assert!(!outbound_connection_allowed(false));
+    }
+}
+
 impl Client {
     const CLIENT_CLIPBOARD_NAME: &'static str = "client-clipboard";
 
@@ -201,6 +217,9 @@ impl Client {
         ),
         (i32, String),
     )> {
+        if !outbound_connection_allowed(crate::common::enterprise_services_allowed()) {
+            bail!("enterprise authentication is required before connecting");
+        }
         debug_assert!(peer == interface.get_id());
         interface.update_direct(None);
         interface.update_received(false);

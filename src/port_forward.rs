@@ -54,6 +54,9 @@ pub async fn listen(
     remote_host: String,
     remote_port: i32,
 ) -> ResultType<()> {
+    if !crate::common::enterprise_services_allowed() {
+        bail!("enterprise authentication is required before port forwarding");
+    }
     let listener = tcp::new_listener(format!("127.0.0.1:{}", port), true).await?;
     let addr = listener.local_addr()?;
     log::info!("listening on port {:?}", addr);

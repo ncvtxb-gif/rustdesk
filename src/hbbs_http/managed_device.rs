@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const MANAGED_HTTP_TIMEOUT: Duration = Duration::from_secs(12);
 const MANAGED_BODY_TIMEOUT: Duration = Duration::from_secs(5);
 const MANAGED_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
-pub(crate) const MANAGED_IDENTITY_IPC_TIMEOUT_MS: u64 = 35_000;
+pub(crate) const MANAGED_IDENTITY_IPC_TIMEOUT_MS: u64 = 45_000;
 
 static BOOTSTRAPS_IN_PROGRESS: AtomicUsize = AtomicUsize::new(0);
 lazy_static::lazy_static! {

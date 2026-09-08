@@ -231,7 +231,10 @@ impl RendezvousMediator {
                     }
                 },
                 _ = timer.tick() => {
-                    if SHOULD_EXIT.load(Ordering::SeqCst) {
+                    if !rendezvous_loop_allowed(
+                        SHOULD_EXIT.load(Ordering::SeqCst),
+                        crate::common::enterprise_services_allowed(),
+                    ) {
                         break;
                     }
                     let now = Some(Instant::now());
@@ -282,6 +285,9 @@ impl RendezvousMediator {
         server: &ServerPtr,
         update_latency: &mut impl FnMut(),
     ) -> ResultType<()> {
+        if !crate::common::enterprise_services_allowed() {
+            bail!("managed identity session is inactive or expired");
+        }
         match msg {
             Some(rendezvous_message::Union::RegisterPeerResponse(rpr)) => {
                 update_latency();
@@ -386,7 +392,10 @@ impl RendezvousMediator {
                     rz.handle_resp(msg.union, Sink::Stream(&mut conn), &server, &mut update_latency).await?
                 }
                 _ = timer.tick() => {
-                    if SHOULD_EXIT.load(Ordering::SeqCst) {
+                    if !rendezvous_loop_allowed(
+                        SHOULD_EXIT.load(Ordering::SeqCst),
+                        crate::common::enterprise_services_allowed(),
+                    ) {
                         break;
                     }
                     // https://www.emqx.com/en/blog/mqtt-keep-alive
@@ -756,6 +765,23 @@ impl RendezvousMediator {
             relay_server = crate::increase_port(&self.host, 1);
         }
         relay_server
+    }
+}
+
+#[inline]
+fn rendezvous_loop_allowed(should_exit: bool, enterprise_services_allowed: bool) -> bool {
+    !should_exit && enterprise_services_allowed
+}
+
+#[cfg(test)]
+mod enterprise_service_gate_tests {
+    use super::rendezvous_loop_allowed;
+
+    #[test]
+    fn active_rendezvous_loop_stops_when_managed_session_expires() {
+        assert!(rendezvous_loop_allowed(false, true));
+        assert!(!rendezvous_loop_allowed(false, false));
+        assert!(!rendezvous_loop_allowed(true, true));
     }
 }
 

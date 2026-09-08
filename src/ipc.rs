@@ -67,6 +67,90 @@ fn is_managed_secret_name(name: &str) -> bool {
     }
 }
 
+#[inline]
+fn is_enterprise_managed_network_option(name: &str) -> bool {
+    matches!(
+        name,
+        "custom-rendezvous-server"
+            | "rendezvous-servers"
+            | "relay-server"
+            | "api-server"
+            | "proxy-url"
+            | "proxy-username"
+            | "proxy-password"
+            | "direct-server"
+            | "enable-lan-discovery"
+            | "disable-udp"
+            | "allow-websocket"
+    )
+}
+
+fn preserve_managed_network_options(
+    mut incoming: HashMap<String, String>,
+    current: &HashMap<String, String>,
+    enterprise_managed: bool,
+) -> HashMap<String, String> {
+    if !enterprise_managed {
+        return incoming;
+    }
+    let keys: Vec<String> = incoming
+        .keys()
+        .chain(current.keys())
+        .filter(|key| is_enterprise_managed_network_option(key))
+        .cloned()
+        .collect();
+    for key in keys {
+        if let Some(value) = current.get(&key) {
+            incoming.insert(key, value.clone());
+        } else {
+            incoming.remove(&key);
+        }
+    }
+    incoming
+}
+
+#[cfg(test)]
+mod enterprise_network_option_tests {
+    use super::{is_enterprise_managed_network_option, preserve_managed_network_options};
+    use std::collections::HashMap;
+
+    #[test]
+    fn identifies_network_options_that_ipc_must_not_modify() {
+        for key in [
+            "custom-rendezvous-server",
+            "rendezvous-servers",
+            "relay-server",
+            "api-server",
+            "proxy-url",
+            "proxy-password",
+            "direct-server",
+            "enable-lan-discovery",
+            "disable-udp",
+            "allow-websocket",
+        ] {
+            assert!(is_enterprise_managed_network_option(key), "{key}");
+        }
+        assert!(!is_enterprise_managed_network_option("image-quality"));
+    }
+
+    #[test]
+    fn managed_network_values_are_preserved_while_other_options_change() {
+        let current = HashMap::from([
+            ("api-server".to_owned(), "https://locked.example".to_owned()),
+            ("relay-server".to_owned(), "locked-relay".to_owned()),
+            ("image-quality".to_owned(), "balanced".to_owned()),
+        ]);
+        let incoming = HashMap::from([
+            ("api-server".to_owned(), "https://attacker.example".to_owned()),
+            ("image-quality".to_owned(), "best".to_owned()),
+        ]);
+        let filtered = preserve_managed_network_options(incoming, &current, true);
+        assert_eq!(filtered.get("api-server"), current.get("api-server"));
+        assert_eq!(filtered.get("relay-server"), current.get("relay-server"));
+        assert_eq!(filtered.get("image-quality").map(String::as_str), Some("best"));
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum FS {
@@ -620,6 +704,10 @@ async fn handle(data: Data, stream: &mut Connection) {
                 allow_err!(stream.send(&Data::Socks(Config::get_socks())).await);
             }
             Some(data) => {
+                if cfg!(all(target_os = "windows", feature = "enterprise-windows")) {
+                    log::warn!("ignored enterprise-managed proxy update over IPC");
+                    return;
+                }
                 let _nat = CheckTestNatType::new();
                 if data.proxy.is_empty() {
                     Config::set_socks(None);
@@ -737,6 +825,11 @@ async fn handle(data: Data, stream: &mut Connection) {
                 allow_err!(stream.send(&Data::Options(Some(v))).await);
             }
             Some(value) => {
+                let value = preserve_managed_network_options(
+                    value,
+                    &Config::get_options(),
+                    cfg!(all(target_os = "windows", feature = "enterprise-windows")),
+                );
                 let _chk = CheckIfRestart::new();
                 let _nat = CheckTestNatType::new();
                 if let Some(v) = value.get("privacy-mode-impl-key") {
@@ -1403,6 +1496,11 @@ pub fn set_option(key: &str, value: &str) {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn set_options(value: HashMap<String, String>) -> ResultType<()> {
+    let value = preserve_managed_network_options(
+        value,
+        &Config::get_options(),
+        cfg!(all(target_os = "windows", feature = "enterprise-windows")),
+    );
     let _nat = CheckTestNatType::new();
     if let Ok(mut c) = connect(1000, "").await {
         c.send(&Data::Options(Some(value.clone()))).await?;
@@ -1461,6 +1559,9 @@ pub async fn get_socks() -> Option<config::Socks5Server> {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn set_socks(value: config::Socks5Server) -> ResultType<()> {
+    if cfg!(all(target_os = "windows", feature = "enterprise-windows")) {
+        bail!("proxy configuration is managed by enterprise policy");
+    }
     let _nat = CheckTestNatType::new();
     Config::set_socks(if value.proxy.is_empty() {
         None
