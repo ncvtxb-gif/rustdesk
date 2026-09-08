@@ -55,6 +55,8 @@ class RustdeskImpl {
 
   Future<bool> mainIsManagedIdentityActive({dynamic hint}) async => false;
 
+  Future<int> mainManagedIdentityRemainingSeconds({dynamic hint}) async => 0;
+
   Future<String> mainBootstrapManagedIdentity(
           {required String accessToken, dynamic hint}) async =>
       'managed identity is unavailable on web';

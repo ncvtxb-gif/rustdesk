@@ -38,17 +38,19 @@ void main() {
     expect(policy.retryDelay(1), const Duration(minutes: 6));
   });
 
-  test('authenticated enterprise refresh requires immediate renewal', () {
-    expect(
-      shouldRenewImmediatelyAfterRefresh(
-          enterpriseBuild: true, tokenAccepted: true),
-      isTrue,
-    );
-    expect(
-      shouldRenewImmediatelyAfterRefresh(
-          enterpriseBuild: false, tokenAccepted: true),
-      isFalse,
-    );
+  test('startup renewal is jittered while identity has a safe lifetime', () {
+    const policy = EnterpriseRenewalPolicy();
+    expect(policy.startupDelay(const Duration(hours: 12), 0), Duration.zero);
+    expect(policy.startupDelay(const Duration(hours: 12), 1),
+        const Duration(minutes: 5));
+  });
+
+  test('startup renewal never crosses the local expiry safety margin', () {
+    const policy = EnterpriseRenewalPolicy();
+    expect(policy.startupDelay(const Duration(minutes: 4), 1),
+        const Duration(minutes: 2));
+    expect(policy.startupDelay(const Duration(minutes: 2), 1), Duration.zero);
+    expect(policy.startupDelay(Duration.zero, 1), Duration.zero);
   });
 
   test('inactive marker stops polling before scheduling renewal retry', () {

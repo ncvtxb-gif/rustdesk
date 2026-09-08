@@ -2116,6 +2116,17 @@ pub fn main_is_managed_identity_active() -> bool {
     }
 }
 
+pub fn main_managed_identity_remaining_seconds() -> u64 {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    {
+        crate::ipc::managed_identity_remaining_seconds()
+    }
+    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+    {
+        0
+    }
+}
+
 pub fn main_is_enterprise_windows_build() -> SyncReturn<bool> {
     SyncReturn(cfg!(all(target_os = "windows", feature = "enterprise-windows")))
 }

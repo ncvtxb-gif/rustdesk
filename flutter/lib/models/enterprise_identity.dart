@@ -7,6 +7,7 @@ typedef BootstrapManagedIdentity = Future<bool> Function(String accessToken);
 typedef RenewManagedIdentity = Future<String> Function(String accessToken);
 typedef ClearManagedIdentity = Future<void> Function();
 typedef IsManagedIdentityActive = Future<bool> Function();
+typedef ManagedIdentityRemainingSeconds = Future<int> Function();
 typedef ClearLocalCredential = Future<void> Function();
 typedef RetryDelay = Future<void> Function(Duration delay);
 typedef RemoteLogout = Future<void> Function();
@@ -29,30 +30,34 @@ EnterpriseActivePollAction enterpriseActivePollAction(bool active) => active
     ? EnterpriseActivePollAction.continuePolling
     : EnterpriseActivePollAction.stopAndRetry;
 
-bool shouldRenewImmediatelyAfterRefresh({
-  required bool enterpriseBuild,
-  required bool tokenAccepted,
-}) =>
-    enterpriseBuild && tokenAccepted;
-
 class EnterpriseRenewalPolicy {
   const EnterpriseRenewalPolicy({
     this.interval = const Duration(hours: 6),
     this.jitterWindow = const Duration(minutes: 30),
     this.retryInterval = const Duration(minutes: 5),
     this.retryJitterWindow = const Duration(minutes: 1),
+    this.startupJitterWindow = const Duration(minutes: 5),
+    this.expirySafetyMargin = const Duration(minutes: 2),
   });
 
   final Duration interval;
   final Duration jitterWindow;
   final Duration retryInterval;
   final Duration retryJitterWindow;
+  final Duration startupJitterWindow;
+  final Duration expirySafetyMargin;
   Duration get initialDelay => Duration.zero;
 
   Duration normalDelay(double randomUnit) =>
       _withJitter(interval, jitterWindow, randomUnit);
   Duration retryDelay(double randomUnit) =>
       _withJitter(retryInterval, retryJitterWindow, randomUnit);
+  Duration startupDelay(Duration remaining, double randomUnit) {
+    final safeRemaining = remaining - expirySafetyMargin;
+    if (safeRemaining <= Duration.zero) return Duration.zero;
+    final jitter = _withJitter(Duration.zero, startupJitterWindow, randomUnit);
+    return jitter < safeRemaining ? jitter : safeRemaining;
+  }
 
   Duration _withJitter(
       Duration base, Duration window, double randomUnit) {
@@ -210,6 +215,7 @@ class EnterpriseIdentityBridge {
   static BootstrapManagedIdentity bootstrap = (_) async => false;
   static ClearManagedIdentity clear = () async {};
   static IsManagedIdentityActive isActive = () async => false;
+  static ManagedIdentityRemainingSeconds remainingSeconds = () async => 0;
   static RenewManagedIdentity renew = (_) async => 'unavailable';
 }
 
@@ -229,5 +235,7 @@ Future<bool> installEnterpriseIdentityBridge() async {
     if (error.isNotEmpty) throw StateError(error);
   };
   EnterpriseIdentityBridge.isActive = () => bind.mainIsManagedIdentityActive();
+  EnterpriseIdentityBridge.remainingSeconds =
+      () => bind.mainManagedIdentityRemainingSeconds();
   return await EnterpriseIdentityBridge.isActive();
 }

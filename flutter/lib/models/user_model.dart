@@ -113,11 +113,19 @@ class UserModel {
 
       final user = UserPayload.fromJson(data);
       _parseAndUpdateUser(user);
-      if (shouldRenewImmediatelyAfterRefresh(
-          enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
-          tokenAccepted: true)) {
+      if (bind.mainIsEnterpriseWindowsBuild()) {
         enterpriseAuthState.value = EnterpriseAuthState.checking;
-        await _renewManagedIdentity(refreshGeneration);
+        final remainingSeconds =
+            await EnterpriseIdentityBridge.remainingSeconds();
+        if (remainingSeconds <= 0) {
+          await _renewManagedIdentity(refreshGeneration);
+        } else {
+          managedIdentityActive.value = true;
+          enterpriseAuthState.value = EnterpriseAuthState.authenticated;
+          _scheduleStartupManagedRenewal(
+              Duration(seconds: remainingSeconds));
+          _startManagedActivePolling();
+        }
       } else {
         enterpriseAuthState.value = enterpriseStateAfterRefresh(
           outcome: EnterpriseRefreshOutcome.success,
@@ -256,6 +264,18 @@ class UserModel {
     final delay = retry
         ? _renewalPolicy.retryDelay(randomUnit)
         : _renewalPolicy.normalDelay(randomUnit);
+    final generation = _identityGeneration;
+    _managedRenewalTimer =
+        Timer(delay, () => _renewManagedIdentity(generation));
+  }
+
+  void _scheduleStartupManagedRenewal(Duration remaining) {
+    if (!bind.mainIsEnterpriseWindowsBuild()) return;
+    final token = bind.mainGetLocalOption(key: 'access_token');
+    if (token.isEmpty) return;
+    _managedRenewalTimer?.cancel();
+    final delay =
+        _renewalPolicy.startupDelay(remaining, Random.secure().nextDouble());
     final generation = _identityGeneration;
     _managedRenewalTimer =
         Timer(delay, () => _renewManagedIdentity(generation));

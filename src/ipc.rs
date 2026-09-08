@@ -763,6 +763,15 @@ async fn handle(data: Data, stream: &mut Connection) {
                     {
                         value = None;
                     }
+                } else if name == "managed-identity-remaining-seconds" {
+                    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+                    {
+                        value = Some(Config::managed_identity_remaining_seconds().to_string());
+                    }
+                    #[cfg(not(all(target_os = "windows", feature = "enterprise-windows")))]
+                    {
+                        value = None;
+                    }
                 } else if name == "rendezvous_server" {
                     value = Some(format!(
                         "{},{}",
@@ -1319,6 +1328,15 @@ pub fn is_managed_identity_active() -> bool {
         .flatten()
         .map(|value| value == "true")
         .unwrap_or(false)
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+pub fn managed_identity_remaining_seconds() -> u64 {
+    get_config("managed-identity-remaining-seconds")
+        .ok()
+        .flatten()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0)
 }
 
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
