@@ -11,6 +11,7 @@ import 'package:flutter_hbb/common/widgets/custom_password.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -79,6 +80,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget buildLeftPane(BuildContext context) {
     final isIncomingOnly = bind.isIncomingOnly();
     final isOutgoingOnly = bind.isOutgoingOnly();
+    final enterprisePolicy = shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild:
+                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')
+        ? EnterpriseUiPolicy.enabled
+        : EnterpriseUiPolicy.disabled;
     final children = <Widget>[
       if (!isOutgoingOnly) buildPresetPasswordWarning(),
       if (bind.isCustomClient())
@@ -92,7 +99,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       ),
       buildTip(context),
       if (!isOutgoingOnly) buildIDBoard(context),
-      if (!isOutgoingOnly) buildPasswordBoard(context),
+      if (!isOutgoingOnly && enterprisePolicy.showPasswordBoard)
+        buildPasswordBoard(context),
       FutureBuilder<Widget>(
         future: Future.value(
             Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),

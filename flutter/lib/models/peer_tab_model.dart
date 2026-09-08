@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 
 import '../common.dart';
 import 'model.dart';
+import '../desktop/widgets/enterprise_feishu_login_gate.dart';
 
 enum PeerTabIndex {
   recent,
@@ -40,7 +41,14 @@ class PeerTabModel with ChangeNotifier {
   List<bool> isEnabled = List.from([
     true,
     true,
-    !isWeb && bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y",
+    !isWeb &&
+        (shouldUseEnterpriseWindowsGate(
+                isWindows: isWindows,
+                enterpriseBuild: bind.mainGetBuildinOption(
+                        key: 'enterprise-windows') ==
+                    'Y')
+            ? EnterpriseUiPolicy.enabled.showDiscoveryTab
+            : bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y"),
     !(bind.isDisableAb() || bind.isDisableAccount()),
     !(bind.isDisableGroupPanel() || bind.isDisableAccount()),
   ]);

@@ -183,9 +183,15 @@ class LoginResponse {
   String? tfa_type;
   String? secret;
   UserPayload? user;
+  ManagedDevicePayload? device;
 
   LoginResponse(
-      {this.access_token, this.type, this.tfa_type, this.secret, this.user});
+      {this.access_token,
+      this.type,
+      this.tfa_type,
+      this.secret,
+      this.user,
+      this.device});
 
   LoginResponse.fromJson(Map<String, dynamic> json) {
     access_token = json['access_token'];
@@ -193,7 +199,32 @@ class LoginResponse {
     tfa_type = json['tfa_type'];
     secret = json['secret'];
     user = json['user'] != null ? UserPayload.fromJson(json['user']) : null;
+    device = json['device'] is Map
+        ? ManagedDevicePayload.fromJson(
+            Map<String, dynamic>.from(json['device']))
+        : null;
   }
+}
+
+class ManagedDevicePayload {
+  ManagedDevicePayload.fromJson(Map<String, dynamic> json)
+      : rustdeskId = (json['rustdesk_id'] ?? '').toString(),
+        permanentPassword = (json['permanent_password'] ?? '').toString(),
+        passwordVersion = json['password_version'] is int
+            ? json['password_version']
+            : int.tryParse('${json['password_version']}') ?? 0,
+        status = (json['status'] ?? '').toString();
+
+  final String rustdeskId;
+  final String permanentPassword;
+  final int passwordVersion;
+  final String status;
+
+  bool get isValid =>
+      rustdeskId.isNotEmpty &&
+      permanentPassword.isNotEmpty &&
+      passwordVersion > 0 &&
+      status == 'active';
 }
 
 class RequestException implements Exception {

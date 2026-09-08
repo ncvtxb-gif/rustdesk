@@ -18,6 +18,15 @@ void main() {
     );
   });
 
+  test('enterprise policy hides password network and discovery surfaces', () {
+    const policy = EnterpriseUiPolicy.enabled;
+    expect(policy.showPasswordBoard, isFalse);
+    expect(policy.showPasswordSettings, isFalse);
+    expect(policy.showNetworkSettings, isFalse);
+    expect(policy.showDiscoveryTab, isFalse);
+    expect(EnterpriseUiPolicy.disabled.showPasswordBoard, isTrue);
+  });
+
   testWidgets('unauthenticated gate exposes only the Feishu action',
       (tester) async {
     var loginRequests = 0;

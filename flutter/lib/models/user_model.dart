@@ -12,6 +12,7 @@ import '../utils/http_service.dart' as http;
 import 'model.dart';
 import 'platform_model.dart';
 import 'enterprise_auth_state.dart';
+import 'enterprise_identity.dart';
 
 bool refreshingUser = false;
 
@@ -139,6 +140,9 @@ class UserModel {
   }
 
   Future<void> reset({bool resetOther = false}) async {
+    if (managedIdentityActive.value) {
+      await EnterpriseIdentityBridge.rollback();
+    }
     await bind.mainSetLocalOption(key: 'access_token', value: '');
     await bind.mainSetLocalOption(key: 'user_info', value: '');
     if (resetOther) {
@@ -157,6 +161,29 @@ class UserModel {
     enterpriseAuthState.value = active
         ? EnterpriseAuthState.authenticated
         : EnterpriseAuthState.unauthenticated;
+  }
+
+  Future<bool> applyEnterpriseLoginResponse(LoginResponse response) async {
+    final coordinator = EnterpriseIdentityCoordinator(
+      apply: EnterpriseIdentityBridge.apply,
+      rollback: () async {
+        await EnterpriseIdentityBridge.rollback();
+        await bind.mainSetLocalOption(key: 'access_token', value: '');
+        await bind.mainSetLocalOption(key: 'user_info', value: '');
+      },
+    );
+    final applied = await coordinator.applyLogin(response);
+    if (!applied) {
+      setManagedIdentityApplied(false);
+      return false;
+    }
+    await bind.mainSetLocalOption(
+        key: 'access_token', value: response.access_token!);
+    await bind.mainSetLocalOption(
+        key: 'user_info', value: jsonEncode(response.user!));
+    _parseAndUpdateUser(response.user!);
+    setManagedIdentityApplied(true);
+    return true;
   }
 
   _parseAndUpdateUser(UserPayload user) {
@@ -228,7 +255,8 @@ class UserModel {
     return getLoginResponseFromAuthBody(body);
   }
 
-  LoginResponse getLoginResponseFromAuthBody(Map<String, dynamic> body) {
+  LoginResponse getLoginResponseFromAuthBody(Map<String, dynamic> body,
+      {bool deferManagedIdentity = false}) {
     final LoginResponse loginResponse;
     try {
       loginResponse = LoginResponse.fromJson(body);
@@ -239,7 +267,7 @@ class UserModel {
 
     final isLogInDone = loginResponse.type == HttpType.kAuthResTypeToken &&
         loginResponse.access_token != null;
-    if (isLogInDone && loginResponse.user != null) {
+    if (isLogInDone && loginResponse.user != null && !deferManagedIdentity) {
       _parseAndUpdateUser(loginResponse.user!);
       // Task 7 will call setManagedIdentityApplied(true) only after the Rust
       // atomic identity apply succeeds. A token alone must never open the UI.

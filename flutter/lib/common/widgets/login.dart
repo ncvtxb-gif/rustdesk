@@ -448,6 +448,15 @@ Future<bool?> loginDialog({
       switch (resp.type) {
         case HttpType.kAuthResTypeToken:
           if (resp.access_token != null) {
+            if (enterpriseFeishuOnly) {
+              final applied =
+                  await gFFI.userModel.applyEnterpriseLoginResponse(resp);
+              if (!applied) {
+                passwordMsg = 'Failed to apply managed device identity';
+                setState(() => isInProgress = false);
+                return;
+              }
+            }
             if (storeIfAccessToken) {
               await bind.mainSetLocalOption(
                   key: 'access_token', value: resp.access_token!);
@@ -550,17 +559,17 @@ Future<bool?> loginDialog({
                   cbLogin: (Map<String, dynamic> authBody) async {
                     LoginResponse? resp;
                     try {
-                      // access_token is already stored in the rust side.
-                      resp =
-                          gFFI.userModel.getLoginResponseFromAuthBody(authBody);
+                      // Enterprise builds defer token persistence until the
+                      // managed identity has been applied successfully.
+                      resp = gFFI.userModel.getLoginResponseFromAuthBody(
+                          authBody,
+                          deferManagedIdentity: enterpriseFeishuOnly);
                     } catch (e) {
                       debugPrint(
                           'Failed to parse oidc login body: "$authBody"');
                     }
-                    close(true);
-
                     if (resp != null) {
-                      handleLoginResponse(resp, false, null);
+                      await handleLoginResponse(resp, false, close);
                     }
                   },
                 ),

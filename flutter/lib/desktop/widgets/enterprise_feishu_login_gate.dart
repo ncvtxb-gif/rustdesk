@@ -11,6 +11,19 @@ bool shouldUseEnterpriseWindowsGate({
 }) =>
     isWindows && enterpriseBuild;
 
+class EnterpriseUiPolicy {
+  const EnterpriseUiPolicy._(this.active);
+
+  static const enabled = EnterpriseUiPolicy._(true);
+  static const disabled = EnterpriseUiPolicy._(false);
+
+  final bool active;
+  bool get showPasswordBoard => !active;
+  bool get showPasswordSettings => !active;
+  bool get showNetworkSettings => !active;
+  bool get showDiscoveryTab => !active;
+}
+
 class EnterpriseFeishuLoginGate extends StatelessWidget {
   const EnterpriseFeishuLoginGate({
     super.key,

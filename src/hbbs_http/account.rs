@@ -106,6 +106,16 @@ pub struct AuthBody {
     #[serde(default)]
     pub secret: String,
     pub user: UserPayload,
+    #[serde(default)]
+    pub device: Option<ManagedDevicePayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManagedDevicePayload {
+    pub rustdesk_id: String,
+    pub permanent_password: String,
+    pub password_version: u64,
+    pub status: String,
 }
 
 pub struct OidcSession {
@@ -228,7 +238,10 @@ impl OidcSession {
 
     fn auth_task(api_server: String, op: String, id: String, uuid: String, remember_me: bool) {
         let auth_request_res = Self::auth(&api_server, &op, &id, &uuid);
-        log::info!("Request oidc auth result: {:?}", &auth_request_res);
+        log::info!(
+            "Request oidc auth result: {}",
+            if auth_request_res.is_ok() { "ok" } else { "failed" }
+        );
         let code_url = match auth_request_res {
             Ok(HbbHttpResponse::<_>::Data(code_url)) => code_url,
             Ok(HbbHttpResponse::<_>::Error(err)) => {
@@ -266,7 +279,12 @@ impl OidcSession {
             match Self::query(&api_server, &code_url.code, &id, &uuid) {
                 Ok(HbbHttpResponse::<_>::Data(auth_body)) => {
                     if auth_body.r#type == "access_token" {
-                        if remember_me {
+                        if remember_me
+                            && !cfg!(all(
+                                target_os = "windows",
+                                feature = "enterprise-windows"
+                            ))
+                        {
                             LocalConfig::set_option(
                                 "access_token".to_owned(),
                                 auth_body.access_token.clone(),

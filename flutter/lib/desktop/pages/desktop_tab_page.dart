@@ -8,6 +8,7 @@ import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
+import 'package:flutter_hbb/models/enterprise_identity.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
 // import 'package:flutter/services.dart';
@@ -70,6 +71,23 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   void initState() {
     super.initState();
+    if (shouldUseEnterpriseWindowsGate(
+        isWindows: isWindows,
+        enterpriseBuild:
+            bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')) {
+      EnterpriseIdentityBridge.apply = (device) async {
+        final dynamic bridge = bind;
+        final String error = await bridge.mainApplyManagedIdentity(
+          id: device.rustdeskId,
+          password: device.permanentPassword,
+        );
+        return error.isEmpty;
+      };
+      EnterpriseIdentityBridge.rollback = () async {
+        final dynamic bridge = bind;
+        await bridge.mainClearManagedIdentity();
+      };
+    }
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 

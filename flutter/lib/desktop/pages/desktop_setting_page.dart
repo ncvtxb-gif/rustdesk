@@ -10,6 +10,7 @@ import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
@@ -71,6 +72,10 @@ class DesktopSettingPage extends StatefulWidget {
         bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
       SettingsTabKey.safety,
     if (!bind.isDisableSettings() &&
+        !shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild:
+                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y') &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
@@ -821,6 +826,12 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final enterprisePolicy = shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild:
+                bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y')
+        ? EnterpriseUiPolicy.enabled
+        : EnterpriseUiPolicy.disabled;
     return SingleChildScrollView(
         controller: scrollController,
         child: Column(
@@ -833,7 +844,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               block: locked,
               child: Column(children: [
                 permissions(context),
-                password(context),
+                if (enterprisePolicy.showPasswordSettings) password(context),
                 _Card(title: '2FA', children: [tfa()]),
                 if (!isChangeIdDisabled())
                   _Card(title: 'ID', children: [changeId()]),

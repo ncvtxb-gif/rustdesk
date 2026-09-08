@@ -31,6 +31,13 @@ bool filterAbTagByIntersection() {
 }
 
 const _personalAddressBookName = "My address book";
+
+bool shouldPersistAddressBookHash({
+  required bool enterpriseWindows,
+  required bool isAdmin,
+  required bool isPersonal,
+}) =>
+    isPersonal || (enterpriseWindows && isAdmin);
 const _legacyAddressBookName = "Legacy address book";
 
 const kUntagged = "Untagged";
@@ -566,6 +573,8 @@ class AbModel {
 
   List<dynamic> _serializeCache() {
     var res = [];
+    final enterpriseWindows = isWindows &&
+        bind.mainGetBuildinOption(key: 'enterprise-windows') == 'Y';
     addressbooks.forEach((key, value) {
       if (!value.isPersonal() && key != current.name()) return;
       res.add({
@@ -573,7 +582,11 @@ class AbModel {
         "name": key,
         "tags": value.tags,
         "peers": value.peers
-            .map((e) => e.toCustomJson(includingHash: value.isPersonal()))
+            .map((e) => e.toCustomJson(
+                includingHash: shouldPersistAddressBookHash(
+                    enterpriseWindows: enterpriseWindows,
+                    isAdmin: gFFI.userModel.isAdmin.value,
+                    isPersonal: value.isPersonal())))
             .toList(),
         "tag_colors": jsonEncode(value.tagColors)
       });

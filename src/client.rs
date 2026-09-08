@@ -3497,22 +3497,44 @@ fn try_get_password_from_personal_ab(lc: Arc<RwLock<LoginConfigHandler>>, passwo
     let ab = config::Ab::load();
     if !access_token.is_empty() && access_token == ab.access_token {
         let id = lc.read().unwrap().id.clone();
-        if let Some(ab) = ab.ab_entries.iter().find(|a| a.personal()) {
-            if let Some(p) = ab
-                .peers
-                .iter()
-                .find_map(|p| if p.id == id { Some(p) } else { None })
-            {
-                if let Ok(hash_password) = base64::decode(p.hash.clone(), base64::Variant::Original)
-                {
-                    if !hash_password.is_empty() {
-                        *password = hash_password.clone();
-                        lc.write().unwrap().password_source =
-                            PasswordSource::PersonalAb(hash_password);
-                    }
+        if let Some(p) = ab
+            .ab_entries
+            .iter()
+            .filter(|a| address_book_entry_can_supply_hash(a.personal()))
+            .flat_map(|a| a.peers.iter())
+            .find(|p| p.id == id)
+        {
+            if let Ok(hash_password) = base64::decode(p.hash.clone(), base64::Variant::Original) {
+                if !hash_password.is_empty() {
+                    *password = hash_password.clone();
+                    lc.write().unwrap().password_source =
+                        PasswordSource::PersonalAb(hash_password);
                 }
             }
         }
+    }
+}
+
+#[inline]
+fn address_book_entry_can_supply_hash(personal: bool) -> bool {
+    personal || cfg!(all(target_os = "windows", feature = "enterprise-windows"))
+}
+
+#[cfg(test)]
+mod enterprise_address_book_tests {
+    use super::address_book_entry_can_supply_hash;
+
+    #[test]
+    fn personal_address_book_hash_remains_available() {
+        assert!(address_book_entry_can_supply_hash(true));
+    }
+
+    #[test]
+    fn shared_hash_is_enterprise_windows_only() {
+        assert_eq!(
+            address_book_entry_can_supply_hash(false),
+            cfg!(all(target_os = "windows", feature = "enterprise-windows"))
+        );
     }
 }
 
