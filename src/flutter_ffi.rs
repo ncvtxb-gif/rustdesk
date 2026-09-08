@@ -1792,8 +1792,9 @@ pub fn main_load_ab() -> String {
 
 pub fn main_save_group(json: String) {
     if json.len() > 1024 {
-        std::thread::spawn(|| {
-            config::Group::store(json);
+        let generation = config::Group::store_generation();
+        std::thread::spawn(move || {
+            config::Group::store_if_current(json, generation);
         });
     } else {
         config::Group::store(json);
