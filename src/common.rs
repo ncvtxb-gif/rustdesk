@@ -1514,6 +1514,10 @@ pub fn decode64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, base64::DecodeError
 }
 
 pub async fn get_key(sync: bool) -> String {
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    if !config::RS_PUB_KEY.trim().is_empty() {
+        return config::RS_PUB_KEY.trim().to_owned();
+    }
     #[cfg(windows)]
     if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
         if !lic.key.is_empty() {

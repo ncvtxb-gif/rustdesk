@@ -311,6 +311,13 @@ def validate_enterprise_windows_build(args, parser):
             + ', '.join(missing)
         )
 
+    padded = [name for name in required if os.environ[name] != os.environ[name].strip()]
+    if padded:
+        parser.error(
+            'enterprise Windows build variables must not contain leading or trailing whitespace: '
+            + ', '.join(padded)
+        )
+
     api_url = urllib.parse.urlparse(os.environ['API_SERVER'].strip())
     if api_url.scheme.lower() != 'https' or not api_url.netloc:
         parser.error('API_SERVER must be an absolute HTTPS URL')

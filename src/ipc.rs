@@ -69,20 +69,7 @@ fn is_managed_secret_name(name: &str) -> bool {
 
 #[inline]
 fn is_enterprise_managed_network_option(name: &str) -> bool {
-    matches!(
-        name,
-        "custom-rendezvous-server"
-            | "rendezvous-servers"
-            | "relay-server"
-            | "api-server"
-            | "proxy-url"
-            | "proxy-username"
-            | "proxy-password"
-            | "direct-server"
-            | "enable-lan-discovery"
-            | "disable-udp"
-            | "allow-websocket"
-    )
+    Config2::is_enterprise_network_option(name)
 }
 
 fn preserve_managed_network_options(
@@ -121,12 +108,20 @@ mod enterprise_network_option_tests {
             "rendezvous-servers",
             "relay-server",
             "api-server",
+            "key",
             "proxy-url",
             "proxy-password",
             "direct-server",
             "enable-lan-discovery",
             "disable-udp",
             "allow-websocket",
+            "allow-insecure-tls-fallback",
+            "direct-access-port",
+            "ice-servers",
+            "enable-udp-punch",
+            "enable-ipv6-punch",
+            "allow-https-21114",
+            "enable-flutter-http-on-rust",
         ] {
             assert!(is_enterprise_managed_network_option(key), "{key}");
         }
@@ -138,15 +133,24 @@ mod enterprise_network_option_tests {
         let current = HashMap::from([
             ("api-server".to_owned(), "https://locked.example".to_owned()),
             ("relay-server".to_owned(), "locked-relay".to_owned()),
+            ("key".to_owned(), "locked-key".to_owned()),
+            ("allow-insecure-tls-fallback".to_owned(), "N".to_owned()),
             ("image-quality".to_owned(), "balanced".to_owned()),
         ]);
         let incoming = HashMap::from([
             ("api-server".to_owned(), "https://attacker.example".to_owned()),
+            ("key".to_owned(), "attacker-key".to_owned()),
+            ("allow-insecure-tls-fallback".to_owned(), "Y".to_owned()),
             ("image-quality".to_owned(), "best".to_owned()),
         ]);
         let filtered = preserve_managed_network_options(incoming, &current, true);
         assert_eq!(filtered.get("api-server"), current.get("api-server"));
         assert_eq!(filtered.get("relay-server"), current.get("relay-server"));
+        assert_eq!(filtered.get("key"), current.get("key"));
+        assert_eq!(
+            filtered.get("allow-insecure-tls-fallback"),
+            current.get("allow-insecure-tls-fallback")
+        );
         assert_eq!(filtered.get("image-quality").map(String::as_str), Some("best"));
     }
 }
