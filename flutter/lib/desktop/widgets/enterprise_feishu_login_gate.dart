@@ -7,6 +7,23 @@ const enterpriseFeishuLoginButtonKey = Key('enterprise-feishu-login');
 const enterpriseTitleBarDragAreaKey = Key('enterprise-titlebar-drag-area');
 const enterpriseMinimizeButtonKey = Key('enterprise-titlebar-minimize');
 const enterpriseCloseButtonKey = Key('enterprise-titlebar-close');
+const enterpriseMainWindowSize = Size(1280, 720);
+
+Future<void> configureEnterpriseMainWindow({
+  required Future<void> Function() unmaximize,
+  required Future<void> Function(Size size) setSize,
+  required Future<void> Function(Size size) setMinimumSize,
+  required Future<void> Function(Size size) setMaximumSize,
+  required Future<void> Function(bool value) setResizable,
+  required Future<void> Function(bool value) setMaximizable,
+}) async {
+  await unmaximize();
+  await setSize(enterpriseMainWindowSize);
+  await setMinimumSize(enterpriseMainWindowSize);
+  await setMaximumSize(enterpriseMainWindowSize);
+  await setResizable(false);
+  await setMaximizable(false);
+}
 
 bool shouldUseEnterpriseWindowsGate({
   required bool isWindows,

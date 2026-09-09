@@ -7,6 +7,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/connection_page_title.dart';
 import 'package:flutter_hbb/consts.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_desktop_home.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
@@ -304,6 +306,26 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   Widget build(BuildContext context) {
     final isOutgoingOnly = bind.isOutgoingOnly();
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+    );
+    if (enterpriseWindows && !isOutgoingOnly) {
+      return EnterpriseDesktopHomeLayout(
+        remoteCard: _buildRemoteIDTextField(context, expanded: true),
+        localIdCard: EnterpriseLocalIdCard(
+          idController: gFFI.serverModel.serverId,
+          onCopy: () {
+            Clipboard.setData(
+              ClipboardData(text: gFFI.serverModel.serverId.text),
+            );
+            showToast(translate('Copied'));
+          },
+        ),
+        peerContent: PeerTabPage(),
+        statusBar: const OnlineStatusWidget(),
+      );
+    }
     return Column(
       children: [
         Expanded(
@@ -340,9 +362,10 @@ class _ConnectionPageState extends State<ConnectionPage>
 
   /// UI for the remote ID TextField.
   /// Search for a peer.
-  Widget _buildRemoteIDTextField(BuildContext context) {
+  Widget _buildRemoteIDTextField(BuildContext context,
+      {bool expanded = false}) {
     var w = Container(
-      width: 320 + 20 * 2,
+      width: expanded ? double.infinity : 320 + 20 * 2,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
       decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(13)),
@@ -610,6 +633,7 @@ class _ConnectionPageState extends State<ConnectionPage>
       ),
     );
     return Container(
-        constraints: const BoxConstraints(maxWidth: 600), child: w);
+        constraints: BoxConstraints(maxWidth: expanded ? double.infinity : 600),
+        child: w);
   }
 }

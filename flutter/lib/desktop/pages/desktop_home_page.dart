@@ -73,6 +73,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+    );
+    if (enterpriseWindows && !isIncomingOnly) {
+      return _buildBlock(child: buildRightPane(context));
+    }
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,

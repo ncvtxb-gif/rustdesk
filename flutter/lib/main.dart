@@ -16,6 +16,7 @@ import 'package:flutter_hbb/desktop/screen/desktop_port_forward_screen.dart';
 import 'package:flutter_hbb/desktop/screen/desktop_remote_screen.dart';
 import 'package:flutter_hbb/desktop/screen/desktop_terminal_screen.dart';
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -136,6 +137,7 @@ Future<void> initEnv(String appType) async {
 void runMainApp(bool startService) async {
   // register uni links
   await initEnv(kAppTypeMain);
+  final enterpriseWindows = isWindows && bind.mainIsEnterpriseWindowsBuild();
   checkUpdate();
   // trigger connection status updater
   await bind.mainCheckConnectStatus();
@@ -144,7 +146,7 @@ void runMainApp(bool startService) async {
     bind.pluginSyncUi(syncTo: kAppTypeMain);
     bind.pluginListReload();
   }
-  if (bind.mainIsEnterpriseWindowsBuild()) {
+  if (enterpriseWindows) {
     var managedIdentityActive = false;
     try {
       managedIdentityActive = await installEnterpriseIdentityBridge();
@@ -167,8 +169,20 @@ void runMainApp(bool startService) async {
   WindowOptions windowOptions = getHiddenTitleBarWindowOptions(
       isMainWindow: true, alwaysOnTop: alwaysOnTop);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    // Restore the location of the main window before window hide or show.
-    await restoreWindowPosition(WindowType.Main);
+    if (enterpriseWindows) {
+      await configureEnterpriseMainWindow(
+        unmaximize: windowManager.unmaximize,
+        setSize: windowManager.setSize,
+        setMinimumSize: windowManager.setMinimumSize,
+        setMaximumSize: windowManager.setMaximumSize,
+        setResizable: windowManager.setResizable,
+        setMaximizable: windowManager.setMaximizable,
+      );
+      await restoreEnterpriseMainWindowPosition(enterpriseMainWindowSize);
+    } else {
+      // Restore the location and size of ordinary client windows.
+      await restoreWindowPosition(WindowType.Main);
+    }
     // Check the startup argument, if we successfully handle the argument, we keep the main window hidden.
     final handledByUniLinks = await initUniLinks();
     debugPrint("handled by uni links: $handledByUniLinks");
@@ -182,8 +196,10 @@ void runMainApp(bool startService) async {
     }
     windowManager.setOpacity(1);
     windowManager.setTitle(getWindowName());
-    // Do not use `windowManager.setResizable()` here.
-    setResizable(!bind.isIncomingOnly());
+    if (!enterpriseWindows) {
+      // Do not use `windowManager.setResizable()` here.
+      setResizable(!bind.isIncomingOnly());
+    }
   });
 }
 

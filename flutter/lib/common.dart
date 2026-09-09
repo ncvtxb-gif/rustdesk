@@ -1764,20 +1764,28 @@ Future<void> saveWindowPosition(WindowType type,
 
   switch (type) {
     case WindowType.Main:
-      // Checking `bind.isIncomingOnly()` is a simple workaround for MacOS.
-      // `await windowManager.isMaximized()` will always return true
-      // if is not resizable. The reason is unknown.
-      //
-      // `setResizable(!bind.isIncomingOnly());` in main.dart
-      isMaximized =
-          bind.isIncomingOnly() ? false : await windowManager.isMaximized();
-      if (isFullscreen || isMaximized) {
-        setPreFrame();
-      } else {
+      if (isWindows && bind.mainIsEnterpriseWindowsBuild()) {
+        isMaximized = false;
+        isFullscreen = false;
         position = await windowManager.getPosition(
             ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
-        sz = await windowManager.getSize(
-            ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
+        sz = null;
+      } else {
+        // Checking `bind.isIncomingOnly()` is a simple workaround for MacOS.
+        // `await windowManager.isMaximized()` will always return true
+        // if is not resizable. The reason is unknown.
+        //
+        // `setResizable(!bind.isIncomingOnly());` in main.dart
+        isMaximized =
+            bind.isIncomingOnly() ? false : await windowManager.isMaximized();
+        if (isFullscreen || isMaximized) {
+          setPreFrame();
+        } else {
+          position = await windowManager.getPosition(
+              ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
+          sz = await windowManager.getSize(
+              ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
+        }
       }
       break;
     default:
@@ -1973,6 +1981,36 @@ Future<Offset?> _adjustRestoreMainWindowOffset(
   } else {
     return Offset(left, top);
   }
+}
+
+/// Restore only the enterprise main-window position.
+///
+/// The persisted width, height and maximized state are deliberately ignored.
+Future<bool> restoreEnterpriseMainWindowPosition(Size fixedSize) async {
+  if (bind
+      .mainGetEnv(key: "DISABLE_RUSTDESK_RESTORE_WINDOW_POSITION")
+      .isNotEmpty) {
+    return false;
+  }
+  final saved = bind.getLocalFlutterOption(
+    k: windowFramePrefix + WindowType.Main.name,
+  );
+  final position = LastWindowPosition.loadFromString(saved);
+  final offset = await _adjustRestoreMainWindowOffset(
+    position?.offsetWidth,
+    position?.offsetHeight,
+    fixedSize.width,
+    fixedSize.height,
+  );
+  if (offset == null) {
+    await windowManager.center();
+  } else {
+    await windowManager.setPosition(
+      offset,
+      ignoreDevicePixelRatio: _ignoreDevicePixelRatio,
+    );
+  }
+  return true;
 }
 
 /// Restore window position and size on start

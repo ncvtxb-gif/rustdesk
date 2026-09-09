@@ -138,11 +138,17 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   Widget build(BuildContext context) {
+    final enterpriseBuild = bind.mainIsEnterpriseWindowsBuild();
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: enterpriseBuild,
+    );
     final tabWidget = Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
             body: DesktopTab(
               controller: tabController,
+              showMaximize: !enterpriseWindows,
               tail: Offstage(
                 offstage: bind.isIncomingOnly() || bind.isDisableSettings(),
                 child: ActionIcon(
@@ -153,9 +159,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 ),
               ),
             )));
-    final enterpriseBuild = bind.mainIsEnterpriseWindowsBuild();
-    if (shouldUseEnterpriseWindowsGate(
-        isWindows: isWindows, enterpriseBuild: enterpriseBuild)) {
+    if (enterpriseWindows) {
       return Obx(() => EnterpriseFeishuLoginGate(
             state: gFFI.userModel.enterpriseAuthState.value,
             managedIdentityActive:
