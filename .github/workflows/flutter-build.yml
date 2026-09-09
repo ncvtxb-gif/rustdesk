@@ -151,7 +151,7 @@ jobs:
         working-directory: flutter
         run: |
           flutter pub get
-          flutter test test/enterprise_feishu_login_gate_test.dart test/enterprise_login_options_test.dart test/enterprise_login_response_test.dart
+          flutter test test/enterprise_feishu_login_gate_test.dart test/enterprise_login_options_test.dart test/enterprise_login_response_test.dart test/enterprise_peer_hash_test.dart
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
