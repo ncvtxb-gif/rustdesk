@@ -2372,6 +2372,14 @@ fn enterprise_services_allowed_for(managed_identity_active: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enterprise_windows_never_checks_for_official_updates() {
+        assert!(!software_update_allowed(false, true, true));
+        assert!(software_update_allowed(false, false, true));
+        assert!(!software_update_allowed(false, false, false));
+        assert!(!software_update_allowed(true, false, true));
+    }
     use hbb_common::tokio::{
         self,
         time::{interval, interval_at, sleep, Duration, Instant, Interval},
