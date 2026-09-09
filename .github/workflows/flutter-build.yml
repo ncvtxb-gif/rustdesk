@@ -146,6 +146,13 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
+      - name: Test enterprise login regressions
+        if: ${{ inputs.enterprise-windows }}
+        working-directory: flutter
+        run: |
+          flutter pub get
+          flutter test test/enterprise_feishu_login_gate_test.dart test/enterprise_login_options_test.dart test/enterprise_login_response_test.dart
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -295,7 +302,8 @@ jobs:
           python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-install.exe
+          test -f ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-install.exe
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
