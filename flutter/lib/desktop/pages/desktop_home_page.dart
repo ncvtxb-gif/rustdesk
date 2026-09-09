@@ -44,6 +44,7 @@ class DesktopLeftPaneRemainder extends StatelessWidget {
   Widget build(BuildContext context) => ColoredBox(
         key: desktopLeftPaneRemainderKey,
         color: Theme.of(context).colorScheme.background,
+        child: const SizedBox.expand(),
       );
 }
 
