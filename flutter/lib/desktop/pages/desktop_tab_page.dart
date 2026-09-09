@@ -155,7 +155,10 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             loginInProgress: _enterpriseLoginInProgress.value,
             onStartDragging: windowManager.startDragging,
             onMinimize: windowManager.minimize,
-            onClose: windowManager.close,
+            onClose: () => closeEnterpriseWindow(
+              setPreventClose: windowManager.setPreventClose,
+              close: windowManager.close,
+            ),
             onFeishuLogin: _startEnterpriseFeishuLogin,
             authenticatedChild: tabWidget,
           ));

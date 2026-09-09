@@ -14,6 +14,16 @@ bool shouldUseEnterpriseWindowsGate({
 }) =>
     isWindows && enterpriseBuild;
 
+typedef EnterpriseSetPreventClose = Future<void> Function(bool prevent);
+
+Future<void> closeEnterpriseWindow({
+  required EnterpriseSetPreventClose setPreventClose,
+  required Future<void> Function() close,
+}) async {
+  await setPreventClose(false);
+  await close();
+}
+
 class EnterpriseUiPolicy {
   const EnterpriseUiPolicy._(this.active);
 

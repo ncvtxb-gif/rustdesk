@@ -113,6 +113,7 @@ pub struct AuthBody {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManagedDevicePayload {
     pub rustdesk_id: String,
+    #[serde(default)]
     pub permanent_password: String,
     pub password_version: u64,
     pub status: String,
@@ -383,5 +384,25 @@ impl OidcSession {
 
     pub fn get_result() -> AuthResult {
         OIDC_SESSION.read().unwrap().get_result_()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ManagedDevicePayload;
+
+    #[test]
+    fn enterprise_oidc_device_payload_accepts_secret_free_response() {
+        let payload: ManagedDevicePayload = serde_json::from_value(serde_json::json!({
+            "rustdesk_id": "214650118",
+            "password_version": 1,
+            "status": "active"
+        }))
+        .expect("OIDC response must not require the managed password");
+
+        assert_eq!(payload.rustdesk_id, "214650118");
+        assert_eq!(payload.permanent_password, "");
+        assert_eq!(payload.password_version, 1);
+        assert_eq!(payload.status, "active");
     }
 }

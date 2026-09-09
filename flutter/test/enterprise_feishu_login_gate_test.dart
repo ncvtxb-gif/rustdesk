@@ -3,6 +3,18 @@ import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('enterprise close disables the global close guard before closing',
+      () async {
+    final calls = <String>[];
+
+    await closeEnterpriseWindow(
+      setPreventClose: (prevent) async => calls.add('prevent:$prevent'),
+      close: () async => calls.add('close'),
+    );
+
+    expect(calls, ['prevent:false', 'close']);
+  });
+
   test('enterprise gate is limited to enterprise Windows builds', () {
     expect(
       shouldUseEnterpriseWindowsGate(isWindows: true, enterpriseBuild: true),
