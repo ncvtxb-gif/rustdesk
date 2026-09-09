@@ -6,6 +6,7 @@ import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/models/enterprise_oidc_flow.dart';
+import 'package:flutter_hbb/models/enterprise_identity.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/models/user_model.dart';
@@ -66,7 +67,12 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
           authBody,
           deferManagedIdentity: true,
         );
-        if (!await gFFI.userModel.applyEnterpriseLoginResponse(response)) {
+        final applied = await completeEnterpriseLogin(
+          applyIdentity: () =>
+              gFFI.userModel.applyEnterpriseLoginResponse(response),
+          syncDeviceCredentials: UserModel.updateOtherModels,
+        );
+        if (!applied) {
           throw const EnterpriseOidcException(
               'Failed to apply managed device identity');
         }

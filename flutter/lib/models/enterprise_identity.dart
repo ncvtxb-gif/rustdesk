@@ -11,6 +11,17 @@ typedef ManagedIdentityRemainingSeconds = Future<int> Function();
 typedef ClearLocalCredential = Future<void> Function();
 typedef RetryDelay = Future<void> Function(Duration delay);
 typedef RemoteLogout = Future<void> Function();
+typedef ApplyEnterpriseIdentity = Future<bool> Function();
+typedef SyncEnterpriseDeviceCredentials = Future<void> Function();
+
+Future<bool> completeEnterpriseLogin({
+  required ApplyEnterpriseIdentity applyIdentity,
+  required SyncEnterpriseDeviceCredentials syncDeviceCredentials,
+}) async {
+  if (!await applyIdentity()) return false;
+  await syncDeviceCredentials();
+  return true;
+}
 
 class EnterpriseClearResult {
   const EnterpriseClearResult._(this.success, this.error);
