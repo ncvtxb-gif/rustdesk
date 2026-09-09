@@ -524,14 +524,17 @@ class _GeneralState extends State<_General> {
               isServer: false,
             ),
           ),
-        if (!isWeb && !bind.isCustomClient())
+        if (!isWeb &&
+            !bind.isCustomClient() &&
+            !(isWindows && bind.mainIsEnterpriseWindowsBuild()))
           _OptionCheckBox(
             context,
             'Check for software update on startup',
             kOptionEnableCheckUpdate,
             isServer: false,
           ),
-        if (showAutoUpdate)
+        if (showAutoUpdate &&
+            !(isWindows && bind.mainIsEnterpriseWindowsBuild()))
           _OptionCheckBox(
             context,
             'Auto update',

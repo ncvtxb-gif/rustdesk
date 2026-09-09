@@ -202,6 +202,10 @@ pub fn core_main() -> Option<Vec<String>> {
                 }
                 return None;
             } else if args[0] == "--update" {
+                if crate::common::enterprise_windows_lockdown_active() {
+                    log::warn!("Official software updates are disabled by enterprise policy");
+                    return None;
+                }
                 if config::is_disable_installation() {
                     return None;
                 }

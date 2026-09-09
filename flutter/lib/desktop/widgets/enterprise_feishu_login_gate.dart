@@ -14,16 +14,15 @@ bool shouldUseEnterpriseWindowsGate({
 }) =>
     isWindows && enterpriseBuild;
 
-typedef EnterpriseSetPreventClose = Future<void> Function(bool prevent);
+bool shouldKeepEnterpriseClientResident({
+  required bool isWindows,
+  required bool enterpriseBuild,
+}) =>
+    isWindows && enterpriseBuild;
 
 Future<void> closeEnterpriseWindow({
-  required EnterpriseSetPreventClose setPreventClose,
-  required Future<void> Function() close,
   required Future<void> Function() hide,
 }) async {
-  // Keep the enterprise client resident. The legacy callbacks stay in this
-  // boundary so tests can prove that a close request never enables process
-  // exit and never closes the native window.
   await hide();
 }
 
@@ -39,6 +38,7 @@ class EnterpriseUiPolicy {
   bool get showNetworkSettings => !active;
   bool get showDiscoveryTab => !active;
   bool get allowSoftwareUpdates => !active;
+  bool get allowProcessExit => !active;
 }
 
 class EnterpriseFeishuLoginGate extends StatelessWidget {

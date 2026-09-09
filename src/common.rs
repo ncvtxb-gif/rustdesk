@@ -946,15 +946,19 @@ fn software_update_allowed(is_custom: bool, enterprise_windows: bool, enabled: b
 
 #[inline]
 pub(crate) fn official_software_updates_allowed() -> bool {
-    !is_custom_client()
-        && !cfg!(all(target_os = "windows", feature = "enterprise-windows"))
+    !enterprise_windows_lockdown_active()
+}
+
+#[inline]
+pub(crate) fn enterprise_windows_lockdown_active() -> bool {
+    cfg!(all(target_os = "windows", feature = "enterprise-windows"))
 }
 
 pub fn check_software_update() {
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
     if software_update_allowed(
         is_custom_client(),
-        cfg!(all(target_os = "windows", feature = "enterprise-windows")),
+        enterprise_windows_lockdown_active(),
         config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt),
     ) {
         std::thread::spawn(move || allow_err!(do_check_software_update()));

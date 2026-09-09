@@ -8,8 +8,6 @@ void main() {
     final calls = <String>[];
 
     await closeEnterpriseWindow(
-      setPreventClose: (prevent) async => calls.add('prevent:$prevent'),
-      close: () async => calls.add('close'),
       hide: () async => calls.add('hide'),
     );
 
@@ -38,8 +36,28 @@ void main() {
     expect(policy.showNetworkSettings, isFalse);
     expect(policy.showDiscoveryTab, isFalse);
     expect(policy.allowSoftwareUpdates, isFalse);
+    expect(policy.allowProcessExit, isFalse);
     expect(EnterpriseUiPolicy.disabled.showPasswordBoard, isTrue);
     expect(EnterpriseUiPolicy.disabled.allowSoftwareUpdates, isTrue);
+    expect(EnterpriseUiPolicy.disabled.allowProcessExit, isTrue);
+  });
+
+  test('enterprise Windows remains resident after its last window closes', () {
+    expect(
+      shouldKeepEnterpriseClientResident(
+          isWindows: true, enterpriseBuild: true),
+      isTrue,
+    );
+    expect(
+      shouldKeepEnterpriseClientResident(
+          isWindows: true, enterpriseBuild: false),
+      isFalse,
+    );
+    expect(
+      shouldKeepEnterpriseClientResident(
+          isWindows: false, enterpriseBuild: true),
+      isFalse,
+    );
   });
 
   testWidgets('unauthenticated gate exposes only the Feishu action',

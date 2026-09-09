@@ -60,11 +60,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
 
     let tray_menu = Menu::new();
     let open_i = MenuItem::new(translate("Open".to_owned()), true, None);
-    let quit_i = tray_menu_has_stop_service(cfg!(all(
-        target_os = "windows",
-        feature = "enterprise-windows"
-    )))
-    .then(|| MenuItem::new(translate("Stop service".to_owned()), true, None));
+    let quit_i = tray_menu_has_stop_service(crate::common::enterprise_windows_lockdown_active())
+        .then(|| MenuItem::new(translate("Stop service".to_owned()), true, None));
     tray_menu.append_items(&[&open_i]).ok();
     if let Some(quit_i) = quit_i.as_ref() {
         tray_menu.append_items(&[quit_i]).ok();

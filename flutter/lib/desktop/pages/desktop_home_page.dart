@@ -441,7 +441,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!(isWindows && bind.mainIsEnterpriseWindowsBuild()) &&
+    final enterprisePolicy = shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
+        ? EnterpriseUiPolicy.enabled
+        : EnterpriseUiPolicy.disabled;
+    if (enterprisePolicy.allowSoftwareUpdates &&
         !bind.isCustomClient() &&
         updateUrl.isNotEmpty &&
         !isCardClosed &&
@@ -480,7 +485,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           await rustDeskWinManager.closeAllSubWindows();
           bind.mainGotoInstall();
         });
-      } else if (bind.mainIsInstalledLowerVersion()) {
+      } else if (enterprisePolicy.allowSoftwareUpdates &&
+          bind.mainIsInstalledLowerVersion()) {
         return buildInstallCard(
             "Status", "Your installation is lower version.", "Click to upgrade",
             () async {
@@ -567,7 +573,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         );
       }
     }
-    if (bind.isIncomingOnly()) {
+    if (bind.isIncomingOnly() && enterprisePolicy.allowProcessExit) {
       return Align(
         alignment: Alignment.centerRight,
         child: OutlinedButton(

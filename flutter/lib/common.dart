@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/peer_tab_model.dart';
@@ -2766,6 +2767,18 @@ Future<void> onActiveWindowChanged() async {
   print(
       "[MultiWindowHandler] active window changed: ${rustDeskWinManager.getActiveWindows()}");
   if (rustDeskWinManager.getActiveWindows().isEmpty) {
+    if (shouldKeepEnterpriseClientResident(
+        isWindows: isWindows,
+        enterpriseBuild:
+            isWindows && bind.mainIsEnterpriseWindowsBuild())) {
+      try {
+        await rustDeskWinManager.closeAllSubWindows();
+      } catch (err) {
+        debugPrintStack(label: "$err");
+      }
+      await windowManager.hide();
+      return;
+    }
     // close all sub windows
     try {
       if (isLinux) {
