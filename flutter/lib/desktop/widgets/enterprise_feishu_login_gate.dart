@@ -4,6 +4,9 @@ import 'package:flutter_hbb/models/enterprise_auth_state.dart';
 export 'package:flutter_hbb/models/enterprise_auth_state.dart';
 
 const enterpriseFeishuLoginButtonKey = Key('enterprise-feishu-login');
+const enterpriseTitleBarDragAreaKey = Key('enterprise-titlebar-drag-area');
+const enterpriseMinimizeButtonKey = Key('enterprise-titlebar-minimize');
+const enterpriseCloseButtonKey = Key('enterprise-titlebar-close');
 
 bool shouldUseEnterpriseWindowsGate({
   required bool isWindows,
@@ -30,6 +33,10 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
     required this.state,
     this.managedIdentityActive = false,
     this.errorText = '',
+    this.onStartDragging,
+    this.onMinimize,
+    this.onClose,
+    this.loginInProgress = false,
     required this.onFeishuLogin,
     required this.authenticatedChild,
   });
@@ -37,6 +44,10 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
   final EnterpriseAuthState state;
   final bool managedIdentityActive;
   final String errorText;
+  final Future<void> Function()? onStartDragging;
+  final Future<void> Function()? onMinimize;
+  final Future<void> Function()? onClose;
+  final bool loginInProgress;
   final Future<void> Function() onFeishuLogin;
   final Widget authenticatedChild;
 
@@ -47,42 +58,80 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
             state == EnterpriseAuthState.offlineGrace)) {
       return authenticatedChild;
     }
-    if (state == EnterpriseAuthState.checking) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.business_rounded, size: 56),
-              const SizedBox(height: 24),
-              const Text('登录后才可使用远程桌面',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 20),
-              if (errorText.isNotEmpty) ...[
-                Text(errorText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error)),
-                const SizedBox(height: 12),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  key: enterpriseFeishuLoginButtonKey,
-                  onPressed: onFeishuLogin,
-                  icon: const Icon(Icons.login),
-                  label: const Text('使用飞书登录'),
-                ),
+      body: Column(children: [
+        SizedBox(
+          height: 36,
+          child: Row(children: [
+            Expanded(
+              child: GestureDetector(
+                key: enterpriseTitleBarDragAreaKey,
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) => onStartDragging?.call(),
+                child: const SizedBox.expand(),
               ),
-            ],
-          ),
+            ),
+            IconButton(
+              key: enterpriseMinimizeButtonKey,
+              tooltip: 'Minimize',
+              onPressed: onMinimize,
+              icon: const Icon(Icons.remove, size: 18),
+            ),
+            IconButton(
+              key: enterpriseCloseButtonKey,
+              tooltip: 'Close',
+              onPressed: onClose,
+              icon: const Icon(Icons.close, size: 18),
+            ),
+          ]),
         ),
-      ),
+        Expanded(
+          child: state == EnterpriseAuthState.checking
+              ? const Center(child: CircularProgressIndicator())
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.business_rounded, size: 56),
+                        const SizedBox(height: 24),
+                        const Text('登录后才可使用远程桌面',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 20),
+                        if (errorText.isNotEmpty) ...[
+                          Text(errorText,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color:
+                                      Theme.of(context).colorScheme.error)),
+                          const SizedBox(height: 12),
+                        ],
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            key: enterpriseFeishuLoginButtonKey,
+                            onPressed:
+                                loginInProgress ? null : onFeishuLogin,
+                            icon: loginInProgress
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ))
+                                : const Icon(Icons.login),
+                            label: const Text('使用飞书登录'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ]),
     );
   }
 }

@@ -5,10 +5,12 @@ import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
-import 'package:flutter_hbb/common/widgets/login.dart';
+import 'package:flutter_hbb/models/enterprise_oidc_flow.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
+import 'package:flutter_hbb/models/user_model.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 // import 'package:flutter/services.dart';
 
@@ -41,6 +43,44 @@ class DesktopTabPage extends StatefulWidget {
 
 class _DesktopTabPageState extends State<DesktopTabPage> {
   final tabController = DesktopTabController(tabType: DesktopTabType.main);
+  final _enterpriseLoginInProgress = false.obs;
+  final _enterpriseLoginError = ''.obs;
+
+  Future<void> _startEnterpriseFeishuLogin() async {
+    if (_enterpriseLoginInProgress.value) return;
+    _enterpriseLoginInProgress.value = true;
+    _enterpriseLoginError.value = '';
+    final configured = bind.mainGetBuildinOption(
+        key: 'enterprise-feishu-oidc-op');
+    final provider = configured.isEmpty ? '飞书登录' : configured;
+    final flow = EnterpriseOidcFlow(
+      queryOptions: UserModel.queryOidcLoginOptions,
+      startAuth: ({required op, required rememberMe}) =>
+          bind.mainAccountAuth(op: op, rememberMe: rememberMe),
+      readAuthResult: () => bind.mainAccountAuthResult(),
+      launchExternalUrl: (url) =>
+          launchUrl(url, mode: LaunchMode.externalApplication),
+      waitForNextPoll: () => Future.delayed(const Duration(seconds: 1)),
+      onAuthBody: (authBody) async {
+        final response = gFFI.userModel.getLoginResponseFromAuthBody(
+          authBody,
+          deferManagedIdentity: true,
+        );
+        if (!await gFFI.userModel.applyEnterpriseLoginResponse(response)) {
+          throw const EnterpriseOidcException(
+              'Failed to apply managed device identity');
+        }
+      },
+    );
+    try {
+      await flow.start(configuredProvider: provider);
+    } catch (e) {
+      await bind.mainAccountAuthCancel();
+      _enterpriseLoginError.value = e.toString();
+    } finally {
+      _enterpriseLoginInProgress.value = false;
+    }
+  }
 
   _DesktopTabPageState() {
     RemoteCountState.init();
@@ -109,17 +149,14 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             state: gFFI.userModel.enterpriseAuthState.value,
             managedIdentityActive:
                 gFFI.userModel.managedIdentityActive.value,
-            errorText: gFFI.userModel.networkError.value,
-            onFeishuLogin: () async {
-              final configuredProvider = bind.mainGetBuildinOption(
-                  key: 'enterprise-feishu-oidc-op');
-              await loginDialog(
-                enterpriseFeishuOnly: true,
-                configuredFeishuProvider: configuredProvider.isEmpty
-                    ? 'feishu'
-                    : configuredProvider,
-              );
-            },
+            errorText: _enterpriseLoginError.value.isNotEmpty
+                ? _enterpriseLoginError.value
+                : gFFI.userModel.networkError.value,
+            loginInProgress: _enterpriseLoginInProgress.value,
+            onStartDragging: windowManager.startDragging,
+            onMinimize: windowManager.minimize,
+            onClose: windowManager.close,
+            onFeishuLogin: _startEnterpriseFeishuLogin,
             authenticatedChild: tabWidget,
           ));
     }

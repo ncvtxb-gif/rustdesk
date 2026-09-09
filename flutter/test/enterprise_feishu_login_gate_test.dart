@@ -43,11 +43,39 @@ void main() {
     expect(find.text('desktop-content'), findsNothing);
     expect(find.byKey(enterpriseFeishuLoginButtonKey), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
-    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(enterpriseCloseButtonKey), findsOneWidget);
 
     await tester.tap(find.byKey(enterpriseFeishuLoginButtonKey));
     await tester.pump();
     expect(loginRequests, 1);
+  });
+
+  testWidgets('enterprise gate title bar exposes drag minimize and close',
+      (tester) async {
+    var drags = 0;
+    var minimizes = 0;
+    var closes = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.unauthenticated,
+        onStartDragging: () async => drags++,
+        onMinimize: () async => minimizes++,
+        onClose: () async => closes++,
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    await tester.drag(find.byKey(enterpriseTitleBarDragAreaKey),
+        const Offset(20, 0));
+    await tester.tap(find.byKey(enterpriseMinimizeButtonKey));
+    await tester.tap(find.byKey(enterpriseCloseButtonKey));
+    await tester.pump();
+
+    expect(drags, 1);
+    expect(minimizes, 1);
+    expect(closes, 1);
   });
 
   testWidgets('fail-closed gate displays managed identity clear error',
@@ -65,6 +93,19 @@ void main() {
     expect(find.text('desktop-content'), findsNothing);
     expect(find.text('Failed to clear managed identity after retries'),
         findsOneWidget);
+  });
+
+  testWidgets('gate displays system browser launch failure', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EnterpriseFeishuLoginGate(
+        state: EnterpriseAuthState.unauthenticated,
+        errorText: 'Failed to open system browser',
+        onFeishuLogin: () async {},
+        authenticatedChild: const Text('desktop-content'),
+      ),
+    ));
+
+    expect(find.text('Failed to open system browser'), findsOneWidget);
   });
 
   testWidgets('authenticated gate restores the original desktop content',
@@ -94,6 +135,9 @@ void main() {
 
     expect(find.text('desktop-content'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(enterpriseTitleBarDragAreaKey), findsOneWidget);
+    expect(find.byKey(enterpriseMinimizeButtonKey), findsOneWidget);
+    expect(find.byKey(enterpriseCloseButtonKey), findsOneWidget);
   });
 
   testWidgets('offline grace fails closed without an applied managed identity',
