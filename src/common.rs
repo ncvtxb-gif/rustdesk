@@ -939,12 +939,24 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
+#[inline]
+fn software_update_allowed(is_custom: bool, enterprise_windows: bool, enabled: bool) -> bool {
+    !is_custom && !enterprise_windows && enabled
+}
+
+#[inline]
+pub(crate) fn official_software_updates_allowed() -> bool {
+    !is_custom_client()
+        && !cfg!(all(target_os = "windows", feature = "enterprise-windows"))
+}
+
 pub fn check_software_update() {
-    if is_custom_client() {
-        return;
-    }
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
-    if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
+    if software_update_allowed(
+        is_custom_client(),
+        cfg!(all(target_os = "windows", feature = "enterprise-windows")),
+        config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt),
+    ) {
         std::thread::spawn(move || allow_err!(do_check_software_update()));
     }
 }
@@ -953,6 +965,10 @@ pub fn check_software_update() {
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    if !official_software_updates_allowed() {
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = String::new();
+        return Ok(());
+    }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
     let proxy_conf = Config::get_socks();

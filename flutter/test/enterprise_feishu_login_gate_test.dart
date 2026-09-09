@@ -37,7 +37,9 @@ void main() {
     expect(policy.showPasswordSettings, isFalse);
     expect(policy.showNetworkSettings, isFalse);
     expect(policy.showDiscoveryTab, isFalse);
+    expect(policy.allowSoftwareUpdates, isFalse);
     expect(EnterpriseUiPolicy.disabled.showPasswordBoard, isTrue);
+    expect(EnterpriseUiPolicy.disabled.allowSoftwareUpdates, isTrue);
   });
 
   testWidgets('unauthenticated gate exposes only the Feishu action',

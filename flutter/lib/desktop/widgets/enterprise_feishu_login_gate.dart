@@ -19,9 +19,12 @@ typedef EnterpriseSetPreventClose = Future<void> Function(bool prevent);
 Future<void> closeEnterpriseWindow({
   required EnterpriseSetPreventClose setPreventClose,
   required Future<void> Function() close,
+  required Future<void> Function() hide,
 }) async {
-  await setPreventClose(false);
-  await close();
+  // Keep the enterprise client resident. The legacy callbacks stay in this
+  // boundary so tests can prove that a close request never enables process
+  // exit and never closes the native window.
+  await hide();
 }
 
 class EnterpriseUiPolicy {
@@ -35,6 +38,7 @@ class EnterpriseUiPolicy {
   bool get showPasswordSettings => !active;
   bool get showNetworkSettings => !active;
   bool get showDiscoveryTab => !active;
+  bool get allowSoftwareUpdates => !active;
 }
 
 class EnterpriseFeishuLoginGate extends StatelessWidget {

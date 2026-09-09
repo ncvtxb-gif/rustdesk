@@ -158,6 +158,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             onClose: () => closeEnterpriseWindow(
               setPreventClose: windowManager.setPreventClose,
               close: windowManager.close,
+              hide: windowManager.hide,
             ),
             onFeishuLogin: _startEnterpriseFeishuLogin,
             authenticatedChild: tabWidget,

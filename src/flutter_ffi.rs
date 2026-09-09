@@ -2336,6 +2336,9 @@ pub fn main_get_new_version() -> SyncReturn<String> {
 }
 
 pub fn main_update_me() -> SyncReturn<bool> {
+    if !crate::common::official_software_updates_allowed() {
+        return SyncReturn(false);
+    }
     update_me("".to_owned());
     SyncReturn(true)
 }
@@ -2907,6 +2910,12 @@ pub fn main_set_common(_key: String, _value: String) {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         use crate::updater::get_download_file_from_url;
+        if matches!(_key.as_str(), "download-new-version" | "update-me")
+            && !crate::common::official_software_updates_allowed()
+        {
+            log::warn!("Official software updates are disabled by enterprise policy");
+            return;
+        }
         if _key == "download-new-version" {
             let download_url = _value.clone();
             let event_key = "download-new-version".to_owned();

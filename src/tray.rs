@@ -8,6 +8,11 @@ use std::sync::{Arc, Mutex};
 #[cfg(windows)]
 use std::time::Duration;
 
+#[inline]
+fn tray_menu_has_stop_service(enterprise_windows: bool) -> bool {
+    !enterprise_windows
+}
+
 pub fn start_tray() {
     if crate::ui_interface::get_builtin_option(hbb_common::config::keys::OPTION_HIDE_TRAY) == "Y" {
         #[cfg(not(target_os = "macos"))]
@@ -54,9 +59,16 @@ fn make_tray() -> hbb_common::ResultType<()> {
     let mut event_loop = EventLoopBuilder::new().build();
 
     let tray_menu = Menu::new();
-    let quit_i = MenuItem::new(translate("Stop service".to_owned()), true, None);
     let open_i = MenuItem::new(translate("Open".to_owned()), true, None);
-    tray_menu.append_items(&[&open_i, &quit_i]).ok();
+    let quit_i = tray_menu_has_stop_service(cfg!(all(
+        target_os = "windows",
+        feature = "enterprise-windows"
+    )))
+    .then(|| MenuItem::new(translate("Stop service".to_owned()), true, None));
+    tray_menu.append_items(&[&open_i]).ok();
+    if let Some(quit_i) = quit_i.as_ref() {
+        tray_menu.append_items(&[quit_i]).ok();
+    }
     let tooltip = |count: usize| {
         if count == 0 {
             format!(
@@ -155,7 +167,11 @@ fn make_tray() -> hbb_common::ResultType<()> {
         }
 
         if let Ok(event) = menu_channel.try_recv() {
-            if event.id == quit_i.id() {
+            if quit_i
+                .as_ref()
+                .map(|item| event.id == item.id())
+                .unwrap_or(false)
+            {
                 /* failed in windows, seems no permission to check system process
                 if !crate::check_process("--server", false) {
                     *control_flow = ControlFlow::Exit;

@@ -102,7 +102,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         buildPasswordBoard(context),
       FutureBuilder<Widget>(
         future: Future.value(
-            Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
+            Obx(() => buildHelpCards(
+                  enterprisePolicy.allowSoftwareUpdates
+                      ? stateGlobal.updateUrl.value
+                      : '',
+                ))),
         builder: (_, data) {
           if (data.hasData) {
             if (isIncomingOnly) {
@@ -437,7 +441,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
+    if (!(isWindows && bind.mainIsEnterpriseWindowsBuild()) &&
+        !bind.isCustomClient() &&
         updateUrl.isNotEmpty &&
         !isCardClosed &&
         bind.mainUriPrefixSync().contains('rustdesk')) {
