@@ -64,20 +64,36 @@ void main() {
   testWidgets('hidden update card leaves a uniformly painted sidebar',
       (tester) async {
     const sidebar = Color(0xFFEFEFF2);
+    const exposedWindowBackground = Color(0xFFC3C3C3);
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(
         colorScheme: const ColorScheme.light(background: sidebar),
       ),
-      home: const SizedBox(
-        width: 200,
-        height: 500,
-        child: DesktopLeftPaneRemainder(),
+      home: const Center(
+        child: SizedBox(
+          width: 200,
+          height: 500,
+          child: ColoredBox(
+            color: exposedWindowBackground,
+            child: Column(
+              children: [
+                SizedBox(height: 100),
+                Expanded(child: DesktopLeftPaneRemainder()),
+              ],
+            ),
+          ),
+        ),
       ),
     ));
 
     final surface = tester.widget<ColoredBox>(
         find.byKey(desktopLeftPaneRemainderKey));
     expect(surface.color, sidebar);
+    expect(
+      tester.getSize(find.byKey(desktopLeftPaneRemainderKey)),
+      const Size(200, 400),
+      reason: 'the surface must paint the complete width below the ID panel',
+    );
   });
 
   testWidgets('unauthenticated gate exposes only the Feishu action',
