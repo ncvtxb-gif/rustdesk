@@ -292,7 +292,7 @@ class UserModel {
       ).renew(token);
     });
     if (result == null || generation != _identityGeneration) return;
-    switch (result) {
+    switch (result.result) {
       case EnterpriseRenewalResult.renewed:
         managedIdentityActive.value = true;
         enterpriseAuthState.value = EnterpriseAuthState.authenticated;
@@ -303,7 +303,7 @@ class UserModel {
       case EnterpriseRenewalResult.offlineValid:
         managedIdentityActive.value = true;
         enterpriseAuthState.value = EnterpriseAuthState.offlineGrace;
-        networkError.value = 'Managed identity renewal is temporarily unavailable';
+        networkError.value = enterpriseRenewalFailureMessage(result);
         _scheduleManagedRenewal(retry: true);
         break;
       case EnterpriseRenewalResult.expired:
@@ -311,12 +311,12 @@ class UserModel {
         _managedActivePollTimer = null;
         managedIdentityActive.value = false;
         enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
-        networkError.value = 'Managed identity session expired; renewal is required';
+        networkError.value = enterpriseRenewalFailureMessage(result);
         _scheduleManagedRenewal(retry: true);
         break;
       case EnterpriseRenewalResult.revoked:
         if (await reset(resetOther: true)) {
-          networkError.value = 'Managed identity login session was rejected';
+          networkError.value = enterpriseRenewalFailureMessage(result);
         }
         break;
     }

@@ -24,6 +24,23 @@ class EnterpriseClearResult {
 
 enum EnterpriseRenewalResult { renewed, offlineValid, expired, revoked }
 
+class EnterpriseRenewalOutcome {
+  const EnterpriseRenewalOutcome(this.result, {this.error = ''});
+
+  final EnterpriseRenewalResult result;
+  final String error;
+}
+
+String enterpriseRenewalFailureMessage(EnterpriseRenewalOutcome outcome) {
+  if (outcome.result == EnterpriseRenewalResult.revoked) {
+    return 'Managed identity login session was rejected; please sign in again';
+  }
+  if (outcome.error.isNotEmpty) {
+    return 'Managed identity renewal failed: ${outcome.error}';
+  }
+  return 'Managed identity renewal failed';
+}
+
 enum EnterpriseActivePollAction { continuePolling, stopAndRetry }
 
 EnterpriseActivePollAction enterpriseActivePollAction(bool active) => active
@@ -77,26 +94,34 @@ class EnterpriseIdentityRenewal {
   final RenewManagedIdentity renewCall;
   final IsManagedIdentityActive isActive;
 
-  Future<EnterpriseRenewalResult> renew(String accessToken) async {
-    if (accessToken.isEmpty) return EnterpriseRenewalResult.expired;
+  Future<EnterpriseRenewalOutcome> renew(String accessToken) async {
+    if (accessToken.isEmpty) {
+      return const EnterpriseRenewalOutcome(EnterpriseRenewalResult.expired,
+          error: 'missing access token');
+    }
     String error;
     try {
       error = await renewCall(accessToken);
     } catch (e) {
       error = e.toString();
     }
-    if (error.isEmpty) return EnterpriseRenewalResult.renewed;
-    if (error.contains('HTTP 400') ||
-        error.contains('HTTP 401') ||
-        error.contains('HTTP 403')) {
-      return EnterpriseRenewalResult.revoked;
+    if (error.isEmpty) {
+      return const EnterpriseRenewalOutcome(EnterpriseRenewalResult.renewed);
+    }
+    if (error.contains('HTTP 401') || error.contains('HTTP 403')) {
+      return EnterpriseRenewalOutcome(EnterpriseRenewalResult.revoked,
+          error: error);
     }
     try {
-      return await isActive()
-          ? EnterpriseRenewalResult.offlineValid
-          : EnterpriseRenewalResult.expired;
+      return EnterpriseRenewalOutcome(
+        await isActive()
+            ? EnterpriseRenewalResult.offlineValid
+            : EnterpriseRenewalResult.expired,
+        error: error,
+      );
     } catch (_) {
-      return EnterpriseRenewalResult.expired;
+      return EnterpriseRenewalOutcome(EnterpriseRenewalResult.expired,
+          error: error);
     }
   }
 }

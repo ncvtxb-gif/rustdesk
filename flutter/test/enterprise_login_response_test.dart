@@ -70,7 +70,8 @@ void main() {
       renewCall: (_) async => 'managed device bootstrap request failed',
       isActive: () async => true,
     );
-    expect(await renewal.renew('token'), EnterpriseRenewalResult.offlineValid);
+    expect((await renewal.renew('token')).result,
+        EnterpriseRenewalResult.offlineValid);
   });
 
   test('renewal fails closed once the old identity has expired', () async {
@@ -78,19 +79,60 @@ void main() {
       renewCall: (_) async => 'managed device bootstrap request failed',
       isActive: () async => false,
     );
-    expect(await renewal.renew('token'), EnterpriseRenewalResult.expired);
+    final outcome = await renewal.renew('token');
+    expect(outcome.result, EnterpriseRenewalResult.expired);
+    expect(enterpriseRenewalFailureMessage(outcome),
+        contains('managed device bootstrap request failed'));
   });
 
   test('renewal rejects server auth or device denial while old marker is valid',
       () async {
-    for (final status in [400, 401, 403]) {
+    for (final status in [401, 403]) {
       final renewal = EnterpriseIdentityRenewal(
         renewCall: (_) async =>
             'managed device bootstrap was rejected with HTTP $status',
         isActive: () async => true,
       );
-      expect(await renewal.renew('token'), EnterpriseRenewalResult.revoked);
+      expect((await renewal.renew('token')).result,
+          EnterpriseRenewalResult.revoked);
     }
+  });
+
+  test('renewal preserves actionable service error when identity is inactive',
+      () async {
+    final renewal = EnterpriseIdentityRenewal(
+      renewCall: (_) async => 'managed device auth hash upload timed out',
+      isActive: () async => false,
+    );
+
+    final outcome = await renewal.renew('token');
+    expect(outcome.result, EnterpriseRenewalResult.expired);
+    expect(outcome.error, 'managed device auth hash upload timed out');
+    expect(enterpriseRenewalFailureMessage(outcome),
+        contains('managed device auth hash upload timed out'));
+    expect(enterpriseRenewalFailureMessage(outcome), isNot(contains('sign in')));
+  });
+
+  test('only explicit unauthorized responses require a new login', () async {
+    for (final status in [401, 403]) {
+      final outcome = await EnterpriseIdentityRenewal(
+        renewCall: (_) async =>
+            'managed device bootstrap was rejected with HTTP $status',
+        isActive: () async => false,
+      ).renew('token');
+      expect(outcome.result, EnterpriseRenewalResult.revoked);
+      expect(enterpriseRenewalFailureMessage(outcome), contains('sign in again'));
+    }
+
+    final badRequest = await EnterpriseIdentityRenewal(
+      renewCall: (_) async =>
+          'managed device bootstrap was rejected with HTTP 400',
+      isActive: () async => false,
+    ).renew('token');
+    expect(badRequest.result, EnterpriseRenewalResult.expired);
+    expect(badRequest.error, contains('HTTP 400'));
+    expect(
+        enterpriseRenewalFailureMessage(badRequest), isNot(contains('sign in')));
   });
 
   test('identity operation queue orders logout clear after active renewal',
