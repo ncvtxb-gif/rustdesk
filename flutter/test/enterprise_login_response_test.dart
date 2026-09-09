@@ -164,6 +164,38 @@ void main() {
     expect(bootstrappedToken, 'token');
   });
 
+  test('successful enterprise login synchronizes administrator device credentials',
+      () async {
+    final events = <String>[];
+
+    final applied = await completeEnterpriseLogin(
+      applyIdentity: () async {
+        events.add('identity');
+        return true;
+      },
+      syncDeviceCredentials: () async => events.add('credentials'),
+    );
+
+    expect(applied, isTrue);
+    expect(events, ['identity', 'credentials']);
+  });
+
+  test('failed enterprise identity never synchronizes device credentials',
+      () async {
+    final events = <String>[];
+
+    final applied = await completeEnterpriseLogin(
+      applyIdentity: () async {
+        events.add('identity');
+        return false;
+      },
+      syncDeviceCredentials: () async => events.add('credentials'),
+    );
+
+    expect(applied, isFalse);
+    expect(events, ['identity']);
+  });
+
   test('device payload is not required and bootstrap failure clears', () async {
     var clears = 0;
     final coordinator = EnterpriseIdentityCoordinator(
