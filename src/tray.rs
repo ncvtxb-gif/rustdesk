@@ -262,3 +262,14 @@ fn load_icon_from_asset() -> Option<image::DynamicImage> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enterprise_windows_tray_has_no_stop_service_action() {
+        assert!(!tray_menu_has_stop_service(true));
+        assert!(tray_menu_has_stop_service(false));
+    }
+}
