@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
+import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -58,6 +59,25 @@ void main() {
           isWindows: false, enterpriseBuild: true),
       isFalse,
     );
+  });
+
+  testWidgets('hidden update card leaves a uniformly painted sidebar',
+      (tester) async {
+    const sidebar = Color(0xFFEFEFF2);
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(
+        colorScheme: const ColorScheme.light(background: sidebar),
+      ),
+      home: const SizedBox(
+        width: 200,
+        height: 500,
+        child: DesktopLeftPaneRemainder(),
+      ),
+    ));
+
+    final surface = tester.widget<ColoredBox>(
+        find.byKey(desktopLeftPaneRemainderKey));
+    expect(surface.color, sidebar);
   });
 
   testWidgets('unauthenticated gate exposes only the Feishu action',
