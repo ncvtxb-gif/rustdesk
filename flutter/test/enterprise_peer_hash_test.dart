@@ -17,6 +17,25 @@ void main() {
     expect(peer.hash, 'compatible-auth-hash');
   });
 
+  test('ordinary users discard a server-provided authentication hash', () {
+    expect(
+      groupPeerHashForRole(
+        'compatible-auth-hash',
+        enterpriseWindows: true,
+        isAdmin: false,
+      ),
+      isEmpty,
+    );
+    expect(
+      groupPeerHashForRole(
+        'compatible-auth-hash',
+        enterpriseWindows: true,
+        isAdmin: true,
+      ),
+      'compatible-auth-hash',
+    );
+  });
+
   test('group cache retains auth hash only for enterprise administrators', () {
     expect(
       shouldPersistGroupPeerHash(

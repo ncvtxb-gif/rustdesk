@@ -169,11 +169,16 @@ void main() {
     final events = <String>[];
 
     final applied = await completeEnterpriseLogin(
+      administrator: true,
       applyIdentity: () async {
         events.add('identity');
         return true;
       },
-      syncDeviceCredentials: () async => events.add('credentials'),
+      syncDeviceCredentials: () async {
+        events.add('credentials');
+        return true;
+      },
+      rollbackIdentity: () async => events.add('rollback'),
     );
 
     expect(applied, isTrue);
@@ -185,15 +190,83 @@ void main() {
     final events = <String>[];
 
     final applied = await completeEnterpriseLogin(
+      administrator: true,
       applyIdentity: () async {
         events.add('identity');
         return false;
       },
-      syncDeviceCredentials: () async => events.add('credentials'),
+      syncDeviceCredentials: () async {
+        events.add('credentials');
+        return true;
+      },
+      rollbackIdentity: () async => events.add('rollback'),
     );
 
     expect(applied, isFalse);
     expect(events, ['identity']);
+  });
+
+  test('ordinary enterprise login never synchronizes administrator credentials',
+      () async {
+    final events = <String>[];
+
+    final applied = await completeEnterpriseLogin(
+      administrator: false,
+      applyIdentity: () async {
+        events.add('identity');
+        return true;
+      },
+      syncDeviceCredentials: () async {
+        events.add('credentials');
+        return true;
+      },
+      rollbackIdentity: () async => events.add('rollback'),
+    );
+
+    expect(applied, isTrue);
+    expect(events, ['identity']);
+  });
+
+  test('administrator credential sync failure rolls back managed identity',
+      () async {
+    final events = <String>[];
+
+    final applied = await completeEnterpriseLogin(
+      administrator: true,
+      applyIdentity: () async {
+        events.add('identity');
+        return true;
+      },
+      syncDeviceCredentials: () async {
+        events.add('credentials');
+        return false;
+      },
+      rollbackIdentity: () async => events.add('rollback'),
+    );
+
+    expect(applied, isFalse);
+    expect(events, ['identity', 'credentials', 'rollback']);
+  });
+
+  test('administrator credential sync exception rolls back managed identity',
+      () async {
+    final events = <String>[];
+
+    final applied = await completeEnterpriseLogin(
+      administrator: true,
+      applyIdentity: () async {
+        events.add('identity');
+        return true;
+      },
+      syncDeviceCredentials: () async {
+        events.add('credentials');
+        throw StateError('group sync failed');
+      },
+      rollbackIdentity: () async => events.add('rollback'),
+    );
+
+    expect(applied, isFalse);
+    expect(events, ['identity', 'credentials', 'rollback']);
   });
 
   test('device payload is not required and bootstrap failure clears', () async {
