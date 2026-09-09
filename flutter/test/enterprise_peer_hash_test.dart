@@ -34,6 +34,15 @@ void main() {
       ),
       'compatible-auth-hash',
     );
+    expect(
+      groupPeerHashForRole(
+        'compatible-auth-hash',
+        enterpriseWindows: false,
+        isAdmin: false,
+      ),
+      'compatible-auth-hash',
+      reason: 'non-enterprise clients must retain their existing behavior',
+    );
   });
 
   test('group cache retains auth hash only for enterprise administrators', () {
