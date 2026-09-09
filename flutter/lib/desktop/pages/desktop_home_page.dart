@@ -35,6 +35,17 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 const borderColor = Color(0xFF2F65BA);
+const desktopLeftPaneRemainderKey = Key('desktop-left-pane-remainder');
+
+class DesktopLeftPaneRemainder extends StatelessWidget {
+  const DesktopLeftPaneRemainder({super.key});
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        key: desktopLeftPaneRemainderKey,
+        color: Theme.of(context).colorScheme.background,
+      );
+}
 
 class _DesktopHomePageState extends State<DesktopHomePage>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
@@ -155,7 +166,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     children: children,
                   ),
                 ),
-                Expanded(child: Container())
+                const Expanded(child: DesktopLeftPaneRemainder())
               ],
             ),
             if (isOutgoingOnly)
