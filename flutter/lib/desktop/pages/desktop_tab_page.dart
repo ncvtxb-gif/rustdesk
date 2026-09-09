@@ -68,13 +68,18 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
           deferManagedIdentity: true,
         );
         final applied = await completeEnterpriseLogin(
+          administrator: response.user?.isAdmin == true,
           applyIdentity: () =>
               gFFI.userModel.applyEnterpriseLoginResponse(response),
           syncDeviceCredentials: UserModel.updateOtherModels,
+          rollbackIdentity: () => gFFI.userModel.reset(resetOther: true),
         );
         if (!applied) {
           throw const EnterpriseOidcException(
               'Failed to apply managed device identity');
+        }
+        if (response.user?.isAdmin != true) {
+          await UserModel.updateOtherModels();
         }
       },
     );

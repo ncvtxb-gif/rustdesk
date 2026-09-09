@@ -15,6 +15,18 @@ bool shouldPersistGroupPeerHash({
 }) =>
     enterpriseWindows && isAdmin;
 
+String groupPeerHashForRole(
+  String hash, {
+  required bool enterpriseWindows,
+  required bool isAdmin,
+}) =>
+    shouldPersistGroupPeerHash(
+      enterpriseWindows: enterpriseWindows,
+      isAdmin: isAdmin,
+    )
+        ? hash
+        : '';
+
 class GroupModel {
   final RxBool groupLoading = false.obs;
   final RxString groupLoadError = "".obs;
@@ -42,32 +54,34 @@ class GroupModel {
         loadEvent: LoadEvent.group);
   }
 
-  Future<void> pull({force = true, quiet = false}) async {
-    if (bind.isDisableGroupPanel()) return;
-    if (!gFFI.userModel.isLogin || groupLoading.value) return;
-    if (gFFI.userModel.networkError.isNotEmpty) return;
-    if (!force && initialized) return;
+  Future<bool> pull({force = true, quiet = false}) async {
+    if (bind.isDisableGroupPanel()) return false;
+    if (!gFFI.userModel.isLogin || groupLoading.value) return false;
+    if (gFFI.userModel.networkError.isNotEmpty) return false;
+    if (!force && initialized) return true;
     if (!quiet) {
       groupLoading.value = true;
       groupLoadError.value = "";
     }
+    var loaded = false;
     try {
-      await _pull();
+      loaded = await _pull();
       _tryHandlePullError();
     } catch (e) {
       print("pull accessibles error: $e");
     }
     groupLoading.value = false;
-    initialized = true;
+    initialized = loaded;
     platformFFI.tryHandle({'name': LoadEvent.group});
     if (_statusCode == 401) {
       gFFI.userModel.reset(resetOther: true);
     } else {
-      _saveCache();
+      if (loaded) _saveCache();
     }
+    return loaded;
   }
 
-  Future<void> _pull() async {
+  Future<bool> _pull() async {
     List<DeviceGroupPayload> tmpDeviceGroups = List.empty(growable: true);
     if (!await _getDeviceGroups(tmpDeviceGroups)) {
       // old hbbs doesn't support this api
@@ -76,11 +90,11 @@ class GroupModel {
     tmpDeviceGroups.sort((a, b) => a.name.compareTo(b.name));
     List<UserPayload> tmpUsers = List.empty(growable: true);
     if (!await _getUsers(tmpUsers)) {
-      return;
+      return false;
     }
     List<Peer> tmpPeers = List.empty(growable: true);
     if (!await _getPeers(tmpPeers)) {
-      return;
+      return false;
     }
     deviceGroups.value = tmpDeviceGroups;
     // me first
@@ -104,6 +118,7 @@ class GroupModel {
         .toList();
     groupLoadError.value = '';
     _callbackPeerUpdate();
+    return true;
   }
 
   Future<bool> _getDeviceGroups(
@@ -267,6 +282,12 @@ class GroupModel {
               for (final p in data) {
                 final peerPayload = PeerPayload.fromJson(p);
                 final peer = PeerPayload.toPeer(peerPayload);
+                peer.hash = groupPeerHashForRole(
+                  peer.hash,
+                  enterpriseWindows:
+                      isWindows && bind.mainIsEnterpriseWindowsBuild(),
+                  isAdmin: gFFI.userModel.isAdmin.value,
+                );
                 int index = tmpPeers.indexWhere((e) => e.id == peer.id);
                 if (index < 0) {
                   tmpPeers.add(peer);

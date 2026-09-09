@@ -178,7 +178,10 @@ void main() {
         events.add('credentials');
         return true;
       },
-      rollbackIdentity: () async => events.add('rollback'),
+      rollbackIdentity: () async {
+        events.add('rollback');
+        return true;
+      },
     );
 
     expect(applied, isTrue);
@@ -199,7 +202,10 @@ void main() {
         events.add('credentials');
         return true;
       },
-      rollbackIdentity: () async => events.add('rollback'),
+      rollbackIdentity: () async {
+        events.add('rollback');
+        return true;
+      },
     );
 
     expect(applied, isFalse);
@@ -220,7 +226,10 @@ void main() {
         events.add('credentials');
         return true;
       },
-      rollbackIdentity: () async => events.add('rollback'),
+      rollbackIdentity: () async {
+        events.add('rollback');
+        return true;
+      },
     );
 
     expect(applied, isTrue);
@@ -241,7 +250,10 @@ void main() {
         events.add('credentials');
         return false;
       },
-      rollbackIdentity: () async => events.add('rollback'),
+      rollbackIdentity: () async {
+        events.add('rollback');
+        return true;
+      },
     );
 
     expect(applied, isFalse);
@@ -262,7 +274,10 @@ void main() {
         events.add('credentials');
         throw StateError('group sync failed');
       },
-      rollbackIdentity: () async => events.add('rollback'),
+      rollbackIdentity: () async {
+        events.add('rollback');
+        return true;
+      },
     );
 
     expect(applied, isFalse);

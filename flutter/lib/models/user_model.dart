@@ -370,11 +370,12 @@ class UserModel {
   }
 
   // update ab and group status
-  static Future<void> updateOtherModels() async {
-    await Future.wait([
+  static Future<bool> updateOtherModels() async {
+    final results = await Future.wait<dynamic>([
       gFFI.abModel.pullAb(force: ForcePullAb.listAndCurrent, quiet: false),
       gFFI.groupModel.pull()
     ]);
+    return results[1] == true;
   }
 
   Future<void> logOut({String? apiServer}) async {

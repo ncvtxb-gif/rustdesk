@@ -12,15 +12,24 @@ typedef ClearLocalCredential = Future<void> Function();
 typedef RetryDelay = Future<void> Function(Duration delay);
 typedef RemoteLogout = Future<void> Function();
 typedef ApplyEnterpriseIdentity = Future<bool> Function();
-typedef SyncEnterpriseDeviceCredentials = Future<void> Function();
+typedef SyncEnterpriseDeviceCredentials = Future<bool> Function();
+typedef RollbackEnterpriseIdentity = Future<bool> Function();
 
 Future<bool> completeEnterpriseLogin({
+  required bool administrator,
   required ApplyEnterpriseIdentity applyIdentity,
   required SyncEnterpriseDeviceCredentials syncDeviceCredentials,
+  required RollbackEnterpriseIdentity rollbackIdentity,
 }) async {
   if (!await applyIdentity()) return false;
-  await syncDeviceCredentials();
-  return true;
+  if (!administrator) return true;
+  try {
+    if (await syncDeviceCredentials()) return true;
+  } catch (_) {
+    // The rollback below is authoritative for both false and exceptions.
+  }
+  await rollbackIdentity();
+  return false;
 }
 
 class EnterpriseClearResult {
