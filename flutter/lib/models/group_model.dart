@@ -20,12 +20,7 @@ String groupPeerHashForRole(
   required bool enterpriseWindows,
   required bool isAdmin,
 }) =>
-    shouldPersistGroupPeerHash(
-      enterpriseWindows: enterpriseWindows,
-      isAdmin: isAdmin,
-    )
-        ? hash
-        : '';
+    enterpriseWindows && !isAdmin ? '' : hash;
 
 class GroupModel {
   final RxBool groupLoading = false.obs;
