@@ -12,6 +12,7 @@ import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/desktop/widgets/material_mod_popup_menu.dart'
     as mod_menu;
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:flutter_hbb/models/ab_model.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
@@ -431,8 +432,12 @@ class _PeerTabPageState extends State<PeerTabPage>
 
   Widget addSelectionToFav() {
     final model = Provider.of<PeerTabModel>(context);
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+    );
     return Offstage(
-      offstage:
+      offstage: enterpriseWindows ||
           model.currentTab != PeerTabIndex.recent.index, // show based on recent
       child: _hoverAction(
         context: context,

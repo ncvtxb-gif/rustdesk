@@ -40,7 +40,11 @@ class PeerTabModel with ChangeNotifier {
   ];
   List<bool> isEnabled = List.from([
     true,
-    true,
+    shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
+        ? EnterpriseUiPolicy.enabled.showFavorites
+        : true,
     !isWeb &&
         (shouldUseEnterpriseWindowsGate(
                 isWindows: isWindows,

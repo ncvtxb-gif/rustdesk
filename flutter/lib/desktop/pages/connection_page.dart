@@ -21,6 +21,7 @@ import '../../common.dart';
 import '../../common/formatter/id_formatter.dart';
 import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
+import '../../common/widgets/login.dart';
 import '../../models/platform_model.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 
@@ -322,6 +323,10 @@ class _ConnectionPageState extends State<ConnectionPage>
             );
             showToast(translate('Copied'));
           },
+          accountButton: Obx(() => EnterpriseAccountButton(
+                displayName: gFFI.userModel.displayName.value,
+                onLogout: logOutConfirmDialog,
+              )),
         ),
         peerContent: PeerTabPage(),
         statusBar: const OnlineStatusWidget(),

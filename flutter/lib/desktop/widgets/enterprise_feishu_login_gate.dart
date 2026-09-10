@@ -54,6 +54,12 @@ class EnterpriseUiPolicy {
   bool get showPasswordSettings => !active;
   bool get showNetworkSettings => !active;
   bool get showDiscoveryTab => !active;
+  bool get showFavorites => !active;
+  bool get showPluginSettings => !active;
+  bool get showAccountSettings => !active;
+  bool get showPrinterSettings => !active;
+  bool get showAboutSettings => !active;
+  bool get showAdvancedSecuritySettings => !active;
   bool get allowSoftwareUpdates => !active;
   bool get allowProcessExit => !active;
 }
@@ -136,16 +142,14 @@ class EnterpriseFeishuLoginGate extends StatelessWidget {
                           Text(errorText,
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color:
-                                      Theme.of(context).colorScheme.error)),
+                                  color: Theme.of(context).colorScheme.error)),
                           const SizedBox(height: 12),
                         ],
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             key: enterpriseFeishuLoginButtonKey,
-                            onPressed:
-                                loginInProgress ? null : onFeishuLogin,
+                            onPressed: loginInProgress ? null : onFeishuLogin,
                             icon: loginInProgress
                                 ? const SizedBox(
                                     width: 18,

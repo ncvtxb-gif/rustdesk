@@ -14,6 +14,7 @@ import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../desktop/widgets/popup_menu.dart';
+import '../../desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'dart:math' as math;
 
 typedef PopupMenuEntryBuilder = Future<List<mod_menu.PopupMenuEntry<String>>>
@@ -966,6 +967,11 @@ class RecentPeerCard extends BasePeerCard {
   @override
   Future<List<MenuEntryBase<String>>> _buildMenuItems(
       BuildContext context) async {
+    final showFavorites = shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
+        ? EnterpriseUiPolicy.enabled.showFavorites
+        : true;
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
       _transferFileAction(context),
@@ -977,7 +983,7 @@ class RecentPeerCard extends BasePeerCard {
       menuItems.add(_terminalRunAsAdminAction(context));
     }
 
-    final List favs = (await bind.mainGetFav()).toList();
+    final List favs = showFavorites ? (await bind.mainGetFav()).toList() : [];
 
     if (isDesktop && peer.platform != kPeerPlatformAndroid) {
       menuItems.add(_tcpTunnelingAction(context));
@@ -1000,10 +1006,12 @@ class RecentPeerCard extends BasePeerCard {
       menuItems.add(_unrememberPasswordAction(peer.id));
     }
 
-    if (!favs.contains(peer.id)) {
-      menuItems.add(_addFavAction(peer.id));
-    } else {
-      menuItems.add(_rmFavAction(peer.id, () async {}));
+    if (showFavorites) {
+      if (!favs.contains(peer.id)) {
+        menuItems.add(_addFavAction(peer.id));
+      } else {
+        menuItems.add(_rmFavAction(peer.id, () async {}));
+      }
     }
 
     if (gFFI.userModel.userName.isNotEmpty) {
@@ -1091,6 +1099,11 @@ class DiscoveredPeerCard extends BasePeerCard {
   @override
   Future<List<MenuEntryBase<String>>> _buildMenuItems(
       BuildContext context) async {
+    final showFavorites = shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
+        ? EnterpriseUiPolicy.enabled.showFavorites
+        : true;
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
       _transferFileAction(context),
@@ -1102,7 +1115,7 @@ class DiscoveredPeerCard extends BasePeerCard {
       menuItems.add(_terminalRunAsAdminAction(context));
     }
 
-    final List favs = (await bind.mainGetFav()).toList();
+    final List favs = showFavorites ? (await bind.mainGetFav()).toList() : [];
 
     if (isDesktop && peer.platform != kPeerPlatformAndroid) {
       menuItems.add(_tcpTunnelingAction(context));
@@ -1119,10 +1132,12 @@ class DiscoveredPeerCard extends BasePeerCard {
       menuItems.add(_createShortCutAction(peer.id));
     }
 
-    if (!favs.contains(peer.id)) {
-      menuItems.add(_addFavAction(peer.id));
-    } else {
-      menuItems.add(_rmFavAction(peer.id, () async {}));
+    if (showFavorites) {
+      if (!favs.contains(peer.id)) {
+        menuItems.add(_addFavAction(peer.id));
+      } else {
+        menuItems.add(_rmFavAction(peer.id, () async {}));
+      }
     }
 
     if (gFFI.userModel.userName.isNotEmpty) {

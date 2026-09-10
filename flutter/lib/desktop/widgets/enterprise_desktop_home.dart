@@ -3,6 +3,15 @@ import 'package:flutter/material.dart';
 const enterpriseRemoteCardKey = Key('enterprise-remote-card');
 const enterpriseLocalIdCardKey = Key('enterprise-local-id-card');
 const enterprisePeerContentKey = Key('enterprise-peer-content');
+const enterpriseAccountButtonKey = Key('enterprise-account-button');
+
+double accessibleDevicesPanelWidth({required bool enterpriseWindows}) =>
+    enterpriseWindows ? 200 : 150;
+
+String enterpriseUserDisplayLabel(String displayName) {
+  final normalized = displayName.trim();
+  return normalized.isEmpty ? '未知用户' : normalized;
+}
 
 class EnterpriseDesktopHomeLayout extends StatelessWidget {
   const EnterpriseDesktopHomeLayout({
@@ -71,10 +80,12 @@ class EnterpriseLocalIdCard extends StatelessWidget {
     super.key,
     required this.idController,
     required this.onCopy,
+    required this.accountButton,
   });
 
   final TextEditingController idController;
   final VoidCallback onCopy;
+  final Widget accountButton;
 
   @override
   Widget build(BuildContext context) {
@@ -88,13 +99,30 @@ class EnterpriseLocalIdCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('你的桌面', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 10),
-          Text(
-            '你的桌面可以通过下面的 ID 进行远程访问。',
-            style: Theme.of(context).textTheme.bodySmall,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '你的桌面',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.merge(const TextStyle(height: 1)),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Text(
+                  '你的桌面可以通过下面的 ID 进行远程访问。',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: 12),
+              accountButton,
+            ],
           ),
-          const Spacer(),
+          const SizedBox(height: 1),
           Container(
             height: 57,
             decoration: const BoxDecoration(
@@ -121,7 +149,11 @@ class EnterpriseLocalIdCard extends StatelessWidget {
                     onDoubleTap: onCopy,
                     child: Text(
                       value.text,
-                      style: const TextStyle(fontSize: 22),
+                      style: const TextStyle(
+                        fontFamily: 'WorkSans',
+                        fontSize: 22,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ),
@@ -130,6 +162,55 @@ class EnterpriseLocalIdCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class EnterpriseAccountButton extends StatelessWidget {
+  const EnterpriseAccountButton({
+    super.key,
+    required this.displayName,
+    required this.onLogout,
+  });
+
+  final String displayName;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: enterpriseAccountButtonKey,
+      tooltip: '账号',
+      padding: EdgeInsets.zero,
+      child: const SizedBox(
+        width: 28,
+        height: 24,
+        child: Icon(Icons.account_circle_outlined, size: 20),
+      ),
+      onSelected: (value) {
+        if (value == 'logout') onLogout();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Text(
+            enterpriseUserDisplayLabel(displayName),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 18),
+              SizedBox(width: 8),
+              Text('退出登录'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

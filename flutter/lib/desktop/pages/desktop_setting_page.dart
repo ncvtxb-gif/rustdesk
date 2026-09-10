@@ -64,6 +64,13 @@ enum SettingsTabKey {
 
 class DesktopSettingPage extends StatefulWidget {
   final SettingsTabKey initialTabkey;
+  static final bool _enterpriseWindows = shouldUseEnterpriseWindowsGate(
+    isWindows: isWindows,
+    enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+  );
+  static final EnterpriseUiPolicy _enterprisePolicy = _enterpriseWindows
+      ? EnterpriseUiPolicy.enabled
+      : EnterpriseUiPolicy.disabled;
   static final List<SettingsTabKey> tabKeys = [
     SettingsTabKey.general,
     if (!isWeb &&
@@ -72,19 +79,22 @@ class DesktopSettingPage extends StatefulWidget {
         bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
       SettingsTabKey.safety,
     if (!bind.isDisableSettings() &&
-        !shouldUseEnterpriseWindowsGate(
-            isWindows: isWindows,
-            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild()) &&
+        _enterprisePolicy.showNetworkSettings &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
-    if (!isWeb && !bind.isIncomingOnly() && bind.pluginFeatureIsEnabled())
+    if (_enterprisePolicy.showPluginSettings &&
+        !isWeb &&
+        !bind.isIncomingOnly() &&
+        bind.pluginFeatureIsEnabled())
       SettingsTabKey.plugin,
-    if (!bind.isDisableAccount()) SettingsTabKey.account,
-    if (isWindows &&
+    if (_enterprisePolicy.showAccountSettings && !bind.isDisableAccount())
+      SettingsTabKey.account,
+    if (_enterprisePolicy.showPrinterSettings &&
+        isWindows &&
         bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
       SettingsTabKey.printer,
-    SettingsTabKey.about,
+    if (_enterprisePolicy.showAboutSettings) SettingsTabKey.about,
   ];
 
   DesktopSettingPage({Key? key, required this.initialTabkey}) : super(key: key);
@@ -830,7 +840,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
     super.build(context);
     final enterprisePolicy = shouldUseEnterpriseWindowsGate(
             isWindows: isWindows,
-                enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
         ? EnterpriseUiPolicy.enabled
         : EnterpriseUiPolicy.disabled;
     return SingleChildScrollView(
@@ -846,10 +856,13 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               child: Column(children: [
                 permissions(context),
                 if (enterprisePolicy.showPasswordSettings) password(context),
-                _Card(title: '2FA', children: [tfa()]),
-                if (!isChangeIdDisabled())
+                if (enterprisePolicy.showAdvancedSecuritySettings)
+                  _Card(title: '2FA', children: [tfa()]),
+                if (enterprisePolicy.showAdvancedSecuritySettings &&
+                    !isChangeIdDisabled())
                   _Card(title: 'ID', children: [changeId()]),
-                more(context),
+                if (enterprisePolicy.showAdvancedSecuritySettings)
+                  more(context),
               ]),
             ),
           ],

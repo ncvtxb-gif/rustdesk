@@ -5,6 +5,9 @@ import 'package:flutter_hbb/common/hbbs/hbbs.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/common/widgets/peers_view.dart';
 import 'package:flutter_hbb/models/state_model.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_desktop_home.dart';
+import 'package:flutter_hbb/desktop/widgets/enterprise_feishu_login_gate.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
@@ -58,6 +61,10 @@ class _MyGroupState extends State<MyGroup> {
   }
 
   Widget _buildLandscape() {
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+    );
     return Row(
       children: [
         Container(
@@ -66,7 +73,8 @@ class _MyGroupState extends State<MyGroup> {
               border:
                   Border.all(color: Theme.of(context).colorScheme.background)),
           child: Container(
-            width: 150,
+            width: accessibleDevicesPanelWidth(
+                enterpriseWindows: enterpriseWindows),
             height: double.infinity,
             child: Column(
               children: [
@@ -196,8 +204,13 @@ class _MyGroupState extends State<MyGroup> {
     final username = user.name;
     final dn = user.displayNameOrName;
     final isDuplicate = (displayNameCount[dn] ?? 0) > 1;
-    final displayName =
-        isDuplicate && user.displayName.trim().isNotEmpty
+    final enterpriseWindows = shouldUseEnterpriseWindowsGate(
+      isWindows: isWindows,
+      enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+    );
+    final displayName = enterpriseWindows
+        ? enterpriseUserDisplayLabel(user.displayName)
+        : isDuplicate && user.displayName.trim().isNotEmpty
             ? '${user.displayName} (@$username)'
             : dn;
     return InkWell(onTap: () {
