@@ -134,7 +134,7 @@ fn validate_bootstrap_response_at(
     Ok(())
 }
 
-pub async fn bootstrap(access_token: &str) -> ResultType<()> {
+pub async fn bootstrap(access_token: &str, machine_uuid: &str) -> ResultType<()> {
     let _bootstrap_guard = BootstrapGuard::begin();
     let _bootstrap_lock = hbb_common::tokio::time::timeout(
         MANAGED_LOCK_TIMEOUT,
@@ -151,7 +151,9 @@ pub async fn bootstrap(access_token: &str) -> ResultType<()> {
         .get(keys::OPTION_API_SERVER)
         .cloned();
     let api_url = validate_locked_api_url(locked_api.as_deref())?;
-    let machine_uuid = crate::encode64(hbb_common::get_uuid());
+    if machine_uuid.trim().is_empty() {
+        bail!("missing managed machine UUID");
+    }
     let endpoint = api_url
         .join("/api/managed-device/bootstrap")
         .context("invalid managed device bootstrap endpoint")?;
@@ -164,7 +166,7 @@ pub async fn bootstrap(access_token: &str) -> ResultType<()> {
             .post(endpoint)
             .bearer_auth(access_token)
             .json(&ManagedDeviceBootstrapRequest {
-                machine_uuid: &machine_uuid,
+                machine_uuid,
                 platform: "windows",
             })
             .send(),
@@ -180,7 +182,7 @@ pub async fn bootstrap(access_token: &str) -> ResultType<()> {
         .await
         .context("managed device bootstrap response timed out")?
         .context("invalid managed device bootstrap response")?;
-    validate_bootstrap_response(&identity, &machine_uuid)?;
+    validate_bootstrap_response(&identity, machine_uuid)?;
     Config::apply_managed_identity(
         &identity.rustdesk_id,
         &identity.permanent_password,

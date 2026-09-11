@@ -376,7 +376,7 @@ pub enum Data {
     Test,
     SyncConfig(Option<Box<(Config, Config2)>>),
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-    BootstrapManagedIdentity(String),
+    BootstrapManagedIdentity(String, String),
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
     ClearManagedIdentity,
     #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
@@ -1001,10 +1001,11 @@ async fn handle(data: Data, stream: &mut Connection) {
             }
         },
         #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
-        Data::BootstrapManagedIdentity(access_token) => {
-            let result = crate::hbbs_http::managed_device::bootstrap(&access_token)
-                .await
-                .map_err(|err| err.to_string());
+        Data::BootstrapManagedIdentity(access_token, machine_uuid) => {
+            let result =
+                crate::hbbs_http::managed_device::bootstrap(&access_token, &machine_uuid)
+                    .await
+                    .map_err(|err| err.to_string());
             if result.is_ok() {
                 RendezvousMediator::restart();
             }
@@ -1316,7 +1317,8 @@ pub async fn set_config(name: &str, value: String) -> ResultType<()> {
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
 #[tokio::main(flavor = "current_thread")]
 pub async fn bootstrap_managed_identity(access_token: String) -> ResultType<()> {
-    managed_identity_request(Data::BootstrapManagedIdentity(access_token)).await
+    let machine_uuid = crate::encode64(hbb_common::get_uuid());
+    managed_identity_request(Data::BootstrapManagedIdentity(access_token, machine_uuid)).await
 }
 
 #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
