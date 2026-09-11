@@ -38,6 +38,14 @@ bool shouldPersistAddressBookHash({
   required bool isPersonal,
 }) =>
     isPersonal || (enterpriseWindows && isAdmin);
+
+bool shouldShowAddressBookWebConsole({
+  required bool enterpriseWindows,
+  required bool isAdmin,
+  required bool legacyMode,
+  required bool canWrite,
+}) =>
+    !legacyMode && canWrite && (!enterpriseWindows || isAdmin);
 const _legacyAddressBookName = "Legacy address book";
 
 const kUntagged = "Untagged";
