@@ -1828,6 +1828,23 @@ mod test {
         let raw = r#"{"t":"ManagedIdentity","c":["123456789","forged-secret"]}"#;
         assert!(serde_json::from_str::<Data>(raw).is_err());
     }
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn enterprise_bootstrap_ipc_carries_login_machine_uuid() {
+        let message = Data::BootstrapManagedIdentity(
+            "managed-access-token".to_owned(),
+            "login-machine-uuid".to_owned(),
+        );
+
+        match message {
+            Data::BootstrapManagedIdentity(token, machine_uuid) => {
+                assert_eq!(token, "managed-access-token");
+                assert_eq!(machine_uuid, "login-machine-uuid");
+            }
+            _ => unreachable!(),
+        }
+    }
     #[test]
     fn verify_ffi_enum_data_size() {
         println!("{}", std::mem::size_of::<Data>());
