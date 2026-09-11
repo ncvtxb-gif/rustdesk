@@ -187,19 +187,12 @@ class EnterpriseAccountButton extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 150),
-          child: Text(
-            enterpriseUserDisplayLabel(displayName),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
         PopupMenuButton<String>(
           key: enterpriseAccountButtonKey,
           tooltip: '账号',
           padding: EdgeInsets.zero,
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 8),
           child: const SizedBox(
             width: 40,
             height: 40,
@@ -220,6 +213,15 @@ class EnterpriseAccountButton extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(width: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Text(
+            enterpriseUserDisplayLabel(displayName),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );

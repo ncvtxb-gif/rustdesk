@@ -1,8 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/desktop/widgets/enterprise_desktop_home.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Flutter titlebar uses the enterprise monitor icon', () {
+    final svg = File('assets/icon.svg').readAsStringSync();
+    expect(svg, contains('data-enterprise-icon="remote-monitor"'));
+    expect(svg, contains('fill="#0b8ff3"'));
+    expect(svg, contains('fill="#fff"'));
+    expect(svg, isNot(contains('linearGradient')));
+  });
+
   testWidgets(
       'enterprise home uses equal top cards and full-width peer content',
       (tester) async {
@@ -171,6 +181,14 @@ void main() {
       tester.getSize(find.byKey(enterpriseAccountButtonKey)),
       const Size(40, 40),
     );
+    expect(
+      tester.getCenter(find.byKey(enterpriseAccountButtonKey)).dx,
+      lessThan(tester.getCenter(find.text('钟俊歌')).dx),
+    );
+    final accountMenu = tester.widget<PopupMenuButton<String>>(
+      find.byKey(enterpriseAccountButtonKey),
+    );
+    expect(accountMenu.position, PopupMenuPosition.under);
 
     await tester.tap(find.byKey(enterpriseAccountButtonKey));
     await tester.pumpAndSettle();
