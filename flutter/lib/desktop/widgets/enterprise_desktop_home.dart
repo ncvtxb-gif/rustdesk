@@ -8,6 +8,8 @@ const enterpriseAccountButtonKey = Key('enterprise-account-button');
 double accessibleDevicesPanelWidth({required bool enterpriseWindows}) =>
     enterpriseWindows ? 200 : 150;
 
+bool showRemoteIdHelpForExpandedLayout({required bool expanded}) => !expanded;
+
 String enterpriseUserDisplayLabel(String displayName) {
   final normalized = displayName.trim();
   return normalized.isEmpty ? '未知用户' : normalized;
@@ -119,7 +121,11 @@ class EnterpriseLocalIdCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              accountButton,
+              SizedOverflowBox(
+                size: const Size(198, 24),
+                alignment: Alignment.centerRight,
+                child: accountButton,
+              ),
             ],
           ),
           const SizedBox(height: 1),
@@ -178,37 +184,42 @@ class EnterpriseAccountButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      key: enterpriseAccountButtonKey,
-      tooltip: '账号',
-      padding: EdgeInsets.zero,
-      child: const SizedBox(
-        width: 28,
-        height: 24,
-        child: Icon(Icons.account_circle_outlined, size: 20),
-      ),
-      onSelected: (value) {
-        if (value == 'logout') onLogout();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          enabled: false,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
           child: Text(
             enterpriseUserDisplayLabel(displayName),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, size: 18),
-              SizedBox(width: 8),
-              Text('退出登录'),
-            ],
+        const SizedBox(width: 8),
+        PopupMenuButton<String>(
+          key: enterpriseAccountButtonKey,
+          tooltip: '账号',
+          padding: EdgeInsets.zero,
+          child: const SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(Icons.account_circle_outlined, size: 28),
           ),
+          onSelected: (value) {
+            if (value == 'logout') onLogout();
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem<String>(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout, size: 18),
+                  SizedBox(width: 8),
+                  Text('退出登录'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

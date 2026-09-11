@@ -62,6 +62,11 @@ void main() {
     expect(copyRequests, 1);
   });
 
+  test('enterprise remote card suppresses the long ID help tooltip', () {
+    expect(showRemoteIdHelpForExpandedLayout(expanded: true), isFalse);
+    expect(showRemoteIdHelpForExpandedLayout(expanded: false), isTrue);
+  });
+
   testWidgets('enterprise top cards align title and ID text baselines',
       (tester) async {
     final localIdController = TextEditingController(text: '214 650 118');
@@ -147,7 +152,7 @@ void main() {
     expect(accountCenter, closeTo(titleCenter, 4));
   });
 
-  testWidgets('enterprise account menu shows Feishu name and logout',
+  testWidgets('enterprise account control shows Feishu name and a large button',
       (tester) async {
     var logoutRequests = 0;
     await tester.pumpWidget(MaterialApp(
@@ -160,6 +165,12 @@ void main() {
         ),
       ),
     ));
+
+    expect(find.text('钟俊歌'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(enterpriseAccountButtonKey)),
+      const Size(40, 40),
+    );
 
     await tester.tap(find.byKey(enterpriseAccountButtonKey));
     await tester.pumpAndSettle();
