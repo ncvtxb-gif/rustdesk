@@ -1289,6 +1289,20 @@ async fn get_config_async(name: &str, ms_timeout: u64) -> ResultType<Option<Stri
     return Ok(None);
 }
 
+async fn sync_config_from_service_async(ms_timeout: u64) -> ResultType<()> {
+    let mut connection = connect(ms_timeout, "").await?;
+    connection.send(&Data::SyncConfig(None)).await?;
+    match connection.next_timeout(ms_timeout).await? {
+        Some(Data::SyncConfig(Some(configs))) => {
+            let (config, config2) = *configs;
+            Config::set(config);
+            Config2::set(config2);
+            Ok(())
+        }
+        _ => bail!("invalid config sync IPC response"),
+    }
+}
+
 pub async fn set_config_async(name: &str, value: String) -> ResultType<()> {
     let mut c = connect(1000, "").await?;
     c.send_config(name, value).await?;
@@ -1349,12 +1363,20 @@ pub fn managed_identity_remaining_seconds() -> u64 {
 async fn managed_identity_request(data: Data) -> ResultType<()> {
     let mut connection = connect(1000, "").await?;
     connection.send(&data).await?;
-    match connection
+    let response = connection
         .next_timeout(crate::hbbs_http::managed_device::MANAGED_IDENTITY_IPC_TIMEOUT_MS)
-        .await?
-    {
-        Some(Data::ManagedIdentityResult(Ok(()))) => Ok(()),
-        Some(Data::ManagedIdentityResult(Err(err))) => bail!(err),
+        .await?;
+    if managed_identity_result_requires_config_sync(&response)? {
+        sync_config_from_service_async(1_000).await?;
+    }
+    Ok(())
+}
+
+#[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+fn managed_identity_result_requires_config_sync(response: &Option<Data>) -> ResultType<bool> {
+    match response {
+        Some(Data::ManagedIdentityResult(Ok(()))) => Ok(true),
+        Some(Data::ManagedIdentityResult(Err(err))) => bail!(err.to_owned()),
         _ => bail!("invalid managed identity IPC response"),
     }
 }
@@ -1847,6 +1869,15 @@ mod test {
             _ => unreachable!(),
         }
     }
+
+    #[cfg(all(target_os = "windows", feature = "enterprise-windows"))]
+    #[test]
+    fn successful_managed_identity_mutation_requires_runtime_config_sync() {
+        let response = Some(Data::ManagedIdentityResult(Ok(())));
+
+        assert!(managed_identity_result_requires_config_sync(&response).unwrap());
+    }
+
     #[test]
     fn verify_ffi_enum_data_size() {
         println!("{}", std::mem::size_of::<Data>());
