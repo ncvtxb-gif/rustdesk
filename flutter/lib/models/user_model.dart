@@ -13,6 +13,7 @@ import '../utils/http_service.dart' as http;
 import 'model.dart';
 import 'platform_model.dart';
 import 'enterprise_auth_state.dart';
+import 'enterprise_address_book_policy.dart';
 import 'enterprise_identity.dart';
 
 bool refreshingUser = false;
@@ -353,6 +354,7 @@ class UserModel {
     displayName.value = '';
     avatar.value = '';
     isAdmin.value = false;
+    parent.target?.peerTabModel.syncEnterpriseAddressBookAccess(isAdmin: false);
     managedIdentityActive.value = false;
     enterpriseAuthState.value = EnterpriseAuthState.unauthenticated;
   }
@@ -362,6 +364,8 @@ class UserModel {
     displayName.value = user.displayName;
     avatar.value = user.avatar;
     isAdmin.value = user.isAdmin;
+    parent.target?.peerTabModel
+        .syncEnterpriseAddressBookAccess(isAdmin: user.isAdmin);
     bind.mainSetLocalOption(key: 'user_info', value: jsonEncode(user));
     if (isWeb) {
       // ugly here, tmp solution
@@ -371,6 +375,16 @@ class UserModel {
 
   // update ab and group status
   static Future<bool> updateOtherModels() async {
+    final canAccessAddressBook = shouldShowAddressBookTab(
+      enterpriseWindows: shouldUseEnterpriseWindowsGate(
+        isWindows: isWindows,
+        enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+      ),
+      isAdmin: gFFI.userModel.isAdmin.value,
+    );
+    if (!canAccessAddressBook) {
+      return await gFFI.groupModel.pull() == true;
+    }
     final results = await Future.wait<dynamic>([
       gFFI.abModel.pullAb(force: ForcePullAb.listAndCurrent, quiet: false),
       gFFI.groupModel.pull()

@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import '../common.dart';
 import 'model.dart';
 import '../desktop/widgets/enterprise_feishu_login_gate.dart';
+import 'enterprise_address_book_policy.dart';
 
 enum PeerTabIndex {
   recent,
@@ -51,7 +52,14 @@ class PeerTabModel with ChangeNotifier {
                 enterpriseBuild: bind.mainIsEnterpriseWindowsBuild())
             ? EnterpriseUiPolicy.enabled.showDiscoveryTab
             : bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y"),
-    !(bind.isDisableAb() || bind.isDisableAccount()),
+    !(bind.isDisableAb() || bind.isDisableAccount()) &&
+        shouldShowAddressBookTab(
+          enterpriseWindows: shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+          ),
+          isAdmin: false,
+        ),
     !(bind.isDisableGroupPanel() || bind.isDisableAccount()),
   ]);
   final List<bool> _isVisible = List.filled(maxTabCount, true, growable: false);
@@ -132,6 +140,22 @@ class PeerTabModel with ChangeNotifier {
       _currentTab = index;
       notifyListeners();
     }
+  }
+
+  void syncEnterpriseAddressBookAccess({required bool isAdmin}) {
+    final enabled = !(bind.isDisableAb() || bind.isDisableAccount()) &&
+        shouldShowAddressBookTab(
+          enterpriseWindows: shouldUseEnterpriseWindowsGate(
+            isWindows: isWindows,
+            enterpriseBuild: bind.mainIsEnterpriseWindowsBuild(),
+          ),
+          isAdmin: isAdmin,
+        );
+    final index = PeerTabIndex.ab.index;
+    if (isEnabled[index] == enabled) return;
+    isEnabled[index] = enabled;
+    _trySetCurrentTabToFirstVisibleEnabled();
+    notifyListeners();
   }
 
   String tabTooltip(int index) {
